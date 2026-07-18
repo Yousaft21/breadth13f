@@ -1,0 +1,353 @@
+[
+  {
+    "filing_quarter": "2014Q1",
+    "skipped": true,
+    "n_filings": 4037,
+    "n_holdings": 1582088
+  },
+  {
+    "filing_quarter": "2014Q2",
+    "skipped": true,
+    "n_filings": 4012,
+    "n_holdings": 1579944
+  },
+  {
+    "filing_quarter": "2014Q3",
+    "skipped": true,
+    "n_filings": 4079,
+    "n_holdings": 1627631
+  },
+  {
+    "filing_quarter": "2014Q4",
+    "skipped": true,
+    "n_filings": 4047,
+    "n_holdings": 1629630
+  },
+  {
+    "filing_quarter": "2015Q1",
+    "skipped": true,
+    "n_filings": 4492,
+    "n_holdings": 1760155
+  },
+  {
+    "filing_quarter": "2015Q2",
+    "skipped": true,
+    "n_filings": 4397,
+    "n_holdings": 1705093
+  },
+  {
+    "filing_quarter": "2015Q3",
+    "skipped": true,
+    "n_filings": 4484,
+    "n_holdings": 1766433
+  },
+  {
+    "filing_quarter": "2015Q4",
+    "skipped": true,
+    "n_filings": 4450,
+    "n_holdings": 1688891
+  },
+  {
+    "filing_quarter": "2016Q1",
+    "skipped": true,
+    "n_filings": 4535,
+    "n_holdings": 1703996
+  },
+  {
+    "filing_quarter": "2016Q2",
+    "skipped": true,
+    "n_filings": 4505,
+    "n_holdings": 1738907
+  },
+  {
+    "filing_quarter": "2016Q3",
+    "skipped": true,
+    "n_filings": 4493,
+    "n_holdings": 1736168
+  },
+  {
+    "filing_quarter": "2016Q4",
+    "skipped": true,
+    "n_filings": 4501,
+    "n_holdings": 1710577
+  },
+  {
+    "filing_quarter": "2017Q1",
+    "skipped": true,
+    "n_filings": 4652,
+    "n_holdings": 1797588
+  },
+  {
+    "filing_quarter": "2017Q2",
+    "skipped": true,
+    "n_filings": 4682,
+    "n_holdings": 1783867
+  },
+  {
+    "filing_quarter": "2017Q3",
+    "skipped": true,
+    "n_filings": 4673,
+    "n_holdings": 1739145
+  },
+  {
+    "filing_quarter": "2017Q4",
+    "skipped": true,
+    "n_filings": 4620,
+    "n_holdings": 1794218
+  },
+  {
+    "filing_quarter": "2018Q1",
+    "skipped": true,
+    "n_filings": 4991,
+    "n_holdings": 1857540
+  },
+  {
+    "filing_quarter": "2018Q2",
+    "skipped": true,
+    "n_filings": 5053,
+    "n_holdings": 1909984
+  },
+  {
+    "filing_quarter": "2018Q3",
+    "skipped": true,
+    "n_filings": 5061,
+    "n_holdings": 1918155
+  },
+  {
+    "filing_quarter": "2018Q4",
+    "skipped": true,
+    "n_filings": 5081,
+    "n_holdings": 2018576
+  },
+  {
+    "filing_quarter": "2019Q1",
+    "skipped": true,
+    "n_filings": 5301,
+    "n_holdings": 1925687
+  },
+  {
+    "filing_quarter": "2019Q2",
+    "skipped": true,
+    "n_filings": 5503,
+    "n_holdings": 2283418
+  },
+  {
+    "filing_quarter": "2019Q3",
+    "skipped": true,
+    "n_filings": 5350,
+    "n_holdings": 2142994
+  },
+  {
+    "filing_quarter": "2019Q4",
+    "skipped": true,
+    "n_filings": 5326,
+    "n_holdings": 2100646
+  },
+  {
+    "filing_quarter": "2020Q1",
+    "skipped": true,
+    "n_filings": 5703,
+    "n_holdings": 2142283
+  },
+  {
+    "filing_quarter": "2020Q2",
+    "skipped": true,
+    "n_filings": 5733,
+    "n_holdings": 2150314
+  },
+  {
+    "filing_quarter": "2020Q3",
+    "skipped": true,
+    "n_filings": 5628,
+    "n_holdings": 2078234
+  },
+  {
+    "filing_quarter": "2020Q4",
+    "skipped": true,
+    "n_filings": 5677,
+    "n_holdings": 2142844
+  },
+  {
+    "filing_quarter": "2021Q1",
+    "skipped": true,
+    "n_filings": 6287,
+    "n_holdings": 2440024
+  },
+  {
+    "filing_quarter": "2021Q2",
+    "skipped": true,
+    "n_filings": 6300,
+    "n_holdings": 2364938
+  },
+  {
+    "filing_quarter": "2021Q3",
+    "skipped": true,
+    "n_filings": 6408,
+    "n_holdings": 2648151
+  },
+  {
+    "filing_quarter": "2021Q4",
+    "skipped": true,
+    "n_filings": 6337,
+    "n_holdings": 2546141
+  },
+  {
+    "filing_quarter": "2022Q1",
+    "skipped": true,
+    "n_filings": 7147,
+    "n_holdings": 2662922
+  },
+  {
+    "filing_quarter": "2022Q2",
+    "skipped": true,
+    "n_filings": 7179,
+    "n_holdings": 2595857
+  },
+  {
+    "filing_quarter": "2022Q3",
+    "skipped": true,
+    "n_filings": 7205,
+    "n_holdings": 2624215
+  },
+  {
+    "filing_quarter": "2022Q4",
+    "skipped": true,
+    "n_filings": 7198,
+    "n_holdings": 2615000
+  },
+  {
+    "filing_quarter": "2023Q1",
+    "skipped": true,
+    "n_filings": 7514,
+    "n_holdings": 2779054
+  },
+  {
+    "filing_quarter": "2023Q2",
+    "skipped": true,
+    "n_filings": 7401,
+    "n_holdings": 2658190
+  },
+  {
+    "filing_quarter": "2023Q3",
+    "skipped": true,
+    "n_filings": 7405,
+    "n_holdings": 2717293
+  },
+  {
+    "filing_quarter": "2023Q4",
+    "skipped": true,
+    "n_filings": 7510,
+    "n_holdings": 2879706
+  },
+  {
+    "filing_quarter": "2024Q1",
+    "skipped": true,
+    "n_filings": 7967,
+    "n_holdings": 2921020
+  },
+  {
+    "filing_quarter": "2024Q2",
+    "skipped": true,
+    "n_filings": 8100,
+    "n_holdings": 3003431
+  },
+  {
+    "filing_quarter": "2024Q3",
+    "skipped": false,
+    "n_filings_in_index": 8120,
+    "n_filings_parsed": 8104,
+    "n_parse_failures": 16,
+    "n_holdings": 3236246,
+    "n_managers": 7302,
+    "n_periods": 43,
+    "distinct_cusips": 36118
+  },
+  {
+    "filing_quarter": "2024Q4",
+    "skipped": false,
+    "n_filings_in_index": 8127,
+    "n_filings_parsed": 8115,
+    "n_parse_failures": 12,
+    "n_holdings": 3332378,
+    "n_managers": 7378,
+    "n_periods": 40,
+    "distinct_cusips": 33095
+  },
+  {
+    "filing_quarter": "2025Q1",
+    "skipped": false,
+    "n_filings_in_index": 8794,
+    "n_filings_parsed": 8783,
+    "n_parse_failures": 11,
+    "n_holdings": 3205361,
+    "n_managers": 8012,
+    "n_periods": 47,
+    "distinct_cusips": 34049
+  },
+  {
+    "filing_quarter": "2025Q2",
+    "skipped": false,
+    "n_filings_in_index": 8730,
+    "n_filings_parsed": 8716,
+    "n_parse_failures": 14,
+    "n_holdings": 3495091,
+    "n_managers": 8027,
+    "n_periods": 50,
+    "distinct_cusips": 35544
+  },
+  {
+    "filing_quarter": "2025Q3",
+    "skipped": false,
+    "n_filings_in_index": 8878,
+    "n_filings_parsed": 8865,
+    "n_parse_failures": 13,
+    "n_holdings": 3289142,
+    "n_managers": 8083,
+    "n_periods": 75,
+    "distinct_cusips": 34281
+  },
+  {
+    "filing_quarter": "2025Q4",
+    "skipped": false,
+    "n_filings_in_index": 8576,
+    "n_filings_parsed": 8563,
+    "n_parse_failures": 13,
+    "n_holdings": 3294338,
+    "n_managers": 8074,
+    "n_periods": 43,
+    "distinct_cusips": 31798
+  },
+  {
+    "filing_quarter": "2026Q1",
+    "skipped": false,
+    "n_filings_in_index": 9510,
+    "n_filings_parsed": 9497,
+    "n_parse_failures": 13,
+    "n_holdings": 3607275,
+    "n_managers": 8713,
+    "n_periods": 50,
+    "distinct_cusips": 32702
+  },
+  {
+    "filing_quarter": "2026Q2",
+    "skipped": false,
+    "n_filings_in_index": 9625,
+    "n_filings_parsed": 9612,
+    "n_parse_failures": 13,
+    "n_holdings": 3659974,
+    "n_managers": 8788,
+    "n_periods": 73,
+    "distinct_cusips": 32648
+  },
+  {
+    "filing_quarter": "2026Q3",
+    "skipped": false,
+    "n_filings_in_index": 638,
+    "n_filings_parsed": 634,
+    "n_parse_failures": 4,
+    "n_holdings": 179098,
+    "n_managers": 590,
+    "n_periods": 21,
+    "distinct_cusips": 9613
+  }
+]

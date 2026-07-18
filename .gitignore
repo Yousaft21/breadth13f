@@ -1,0 +1,23 @@
+# Raw/intermediate data is rebuildable from scripts — never commit it
+data/
+
+# results/ (figures + metric tables) ARE committed — they are the deliverable
+# the README renders and a reader inspects without rebuilding.
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ipynb_checkpoints/
+*.egg-info/
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Secrets / local config
+.env
+config/secrets.yaml

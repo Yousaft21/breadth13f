@@ -1,0 +1,21 @@
+# Core (Phase 1 - ingest)
+requests>=2.31
+pandas>=2.2
+numpy>=1.26
+lxml>=5.2
+pyyaml>=6.0
+tqdm>=4.66
+python-dateutil>=2.9
+
+# Later phases (mapping, prices, backtest, attribution)
+pyarrow>=16.0          # parquet caching
+yfinance>=0.2.40       # prices (primary)
+pandas-datareader>=0.10  # Stooq fallback + Ken French factors
+scikit-learn>=1.5
+lightgbm>=4.3
+shap>=0.45
+scipy>=1.13
+matplotlib>=3.8
+
+# Dev / test
+pytest>=8.2

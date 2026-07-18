@@ -1,0 +1,18 @@
+[project]
+name = "institutional-breadth-13f"
+version = "0.1.0"
+description = "Institutional ownership-breadth signal from SEC 13F filings and its cross-sectional predictivity of forward returns."
+requires-python = ">=3.12"
+readme = "README.md"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"

@@ -1,0 +1,66 @@
+# ---------------------------------------------------------------------------
+# Configuration for the 13F institutional-breadth signal pipeline.
+# Everything the pipeline needs is driven from this file so a run is
+# reproducible and auditable. Paths are relative to the repo root.
+# ---------------------------------------------------------------------------
+
+project:
+  data_dir: data
+  raw_dir: data/raw
+  interim_dir: data/interim
+  processed_dir: data/processed
+  results_dir: results
+
+# --- Sample window ----------------------------------------------------------
+# 13F information tables were standardized as XML in mid-2013; starting at
+# 2014-Q1 avoids early-format messiness. Quarters are the *period_of_report*
+# (fiscal quarter-end the holdings describe), NOT the filing date.
+window:
+  start_quarter: "2014Q1"
+  end_quarter:   "2026Q1"
+
+# --- EDGAR access -----------------------------------------------------------
+# SEC fair-access policy: <=10 requests/second, and every request MUST carry a
+# descriptive User-Agent naming the requester with a contact email.
+# Override the contact via the EDGAR_USER_AGENT environment variable.
+edgar:
+  # Format the SEC asks for: "Sample Company AdminContact@sample.com"
+  user_agent: "institutional-breadth-13f research dgenx21@gmail.com"
+  base_archives: "https://www.sec.gov/Archives"
+  requests_per_second: 5        # gentle: well under the 10/s cap to avoid soft-throttling
+  max_retries: 8                # patient retries for throttling/5xx (429, 500-504)
+  backoff_seconds: 2.0
+  max_backoff_seconds: 30       # cap on exponential backoff per retry
+  timeout_seconds: 30           # read timeout (large filings need headroom)
+  connect_timeout_seconds: 10   # fail fast on DNS/connection stalls
+  conn_retries: 2               # cap retries on connection/timeout errors
+  conn_backoff_seconds: 1.5
+  form_types:                   # forms that carry an information table
+    - "13F-HR"
+    - "13F-HR/A"
+
+# --- Point-in-time rule -----------------------------------------------------
+# Managers have up to 45 days after quarter-end to file. The signal for a
+# quarter can only be formed once filings have arrived. We snapshot at
+# quarter-end + filing_lag_days and use ONLY filings accepted on/before that
+# date (actual acceptance datetimes are respected per filing).
+pit:
+  filing_lag_days: 46
+
+# --- Universe filter --------------------------------------------------------
+# A security enters the panel for a formation date when it has at least this
+# many institutional holders (sufficient 13F coverage) and a usable price. This
+# threshold is the main lever behind the final universe size — report the
+# realized count.
+universe:
+  min_holders: 5
+
+# --- Cross-validation (purged & embargoed) ----------------------------------
+cv:
+  n_splits: 5
+  primary_horizon_months: 12     # forward-return label horizon (primary)
+  robustness_horizon_months: 6   # optional robustness check
+  embargo_days: 21
+
+logging:
+  level: INFO
