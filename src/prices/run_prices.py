@@ -5,10 +5,15 @@ Assembles the modeling panel from the breadth panel:
 1. Load prices (yfinance -> Stooq, cached per ticker) for every panel ticker.
 2. Compute forward 6/12-month total returns and per-period delisting-dropout
    diagnostics.
-3. Build the point-in-time size/value baseline from SEC XBRL fundamentals and
+3. Map each stock-quarter to its issuer's SEC CIK **point-in-time**, from the
+   13F issuer names and the names on EDGAR periodic reports at the time (see
+   :mod:`src.mapping.issuer_cik`); SEC's current ``company_tickers.json`` only
+   fills rows the name match leaves empty.
+4. Build the point-in-time size/value baseline from SEC XBRL fundamentals and
    **as-traded** prices (raw closes + split history, cached per ticker) for the
-   tickers that resolve to an SEC CIK.
-4. Merge everything into ``data/processed/model_panel.parquet``.
+   rows with a CIK.
+5. Merge everything into ``data/processed/model_panel.parquet``; the CIK and
+   its source (``cik``, ``cik_source``) are kept for auditing.
 
 Outputs coverage/diagnostic tables to ``results/tables/``.
 """
@@ -23,7 +28,9 @@ import pandas as pd
 from tqdm import tqdm
 
 from ..config import load_config, setup_logging
+from ..ingest.crawl import Quarter
 from ..ingest.edgar_client import EdgarClient
+from ..mapping import issuer_cik
 from .as_traded import load_raw_closes
 from .baseline import build_baseline_features
 from .fundamentals import FundamentalsProvider, _norm_ticker, load_ticker_cik_map
@@ -44,10 +51,11 @@ def _load_all_prices(tickers, start, end, cache_dir) -> dict[str, pd.DataFrame]:
     return lookup
 
 
-def build_fundamentals_client(cfg) -> EdgarClient:
+def build_fundamentals_client(cfg, cache_dir=None) -> EdgarClient:
+    """Fair-access EDGAR client; caches under ``data/raw/sec_xbrl`` by default."""
     e = cfg.edgar
     return EdgarClient(
-        cache_dir=cfg.path("raw") / "sec_xbrl",
+        cache_dir=cache_dir or cfg.path("raw") / "sec_xbrl",
         user_agent=cfg.user_agent,
         requests_per_second=e["requests_per_second"],
         max_retries=e["max_retries"],
@@ -58,6 +66,51 @@ def build_fundamentals_client(cfg) -> EdgarClient:
         conn_backoff_seconds=e.get("conn_backoff_seconds", 1.5),
         max_backoff_seconds=e.get("max_backoff_seconds", 30.0),
     )
+
+
+def _map_ciks(cfg, panel: pd.DataFrame, fclient: EdgarClient) -> tuple[pd.Series, pd.Series, dict]:
+    """Point-in-time issuer CIK per panel row, its source, and coverage stats.
+
+    The 13F issuer names come from the ingested holdings; the EDGAR names from
+    the quarterly ``master.idx`` (cached under ``data/raw/edgar``; quarters the
+    13F crawl did not cover are fetched once). Rows the name match leaves empty
+    fall back to the current-ticker map unless ``issuer_cik.ticker_fallback`` is off.
+    """
+    icfg = cfg.raw.get("issuer_cik", {})
+    recency = int(icfg.get("recency_days", 730))
+    formations = pd.to_datetime(panel["formation_date"])
+    first = formations.min() - pd.Timedelta(days=recency)
+    last = formations.max()
+    start = Quarter(first.year, (first.month - 1) // 3 + 1)
+    end = Quarter(last.year, (last.month - 1) // 3 + 1)
+
+    master = pd.read_parquet(cfg.path("processed") / "security_master.parquet")
+    master = master[master["composite_figi"].isin(panel["composite_figi"].unique())]
+    names = issuer_cik.names_by_security(
+        issuer_cik.issuer_names_from_holdings(cfg.path("interim") / "holdings", master["cusip"]),
+        master)
+    archive_client = build_fundamentals_client(cfg, cache_dir=cfg.path("raw_edgar"))
+    spells = issuer_cik.edgar_name_spells(archive_client, cfg.edgar["base_archives"], start, end)
+    matches = issuer_cik.match_names(names["name"], spells)
+    name_cik = issuer_cik.pit_ciks(panel, names, matches, recency_days=recency,
+                                   min_support=float(icfg.get("min_support", 0.5)),
+                                   key="composite_figi")
+
+    ticker_map = load_ticker_cik_map(fclient)
+    ticker_cik = pd.Series([ticker_map.get(_norm_ticker(t)) if isinstance(t, str) and t else None
+                            for t in panel["ticker"]], dtype="Int64")
+    cik, source = issuer_cik.combine_ciks(name_cik, ticker_cik,
+                                          use_ticker=bool(icfg.get("ticker_fallback", True)))
+    both = name_cik.notna() & ticker_cik.notna()
+    cov = {
+        "cik_rows_name": int(name_cik.notna().sum()),
+        "cik_rows_ticker": int(ticker_cik.notna().sum()),
+        "cik_rows_final": int(cik.notna().sum()),
+        "cik_rows_ticker_fill": int((source == "ticker").sum()),
+        "cik_rows_name_ticker_disagree": int((both & (name_cik != ticker_cik).fillna(False)).sum()),
+    }
+    logger.info("Issuer CIKs: %s", cov)
+    return cik.set_axis(panel.index), source.set_axis(panel.index), cov
 
 
 def main() -> None:
@@ -86,14 +139,16 @@ def main() -> None:
     dropout.to_csv(cfg.path("results") / "tables" / "delisting_dropout.csv", index=False)
     logger.info("Wrote delisting-dropout diagnostics")
 
-    # --- size/value baseline from SEC XBRL ---
+    # --- issuer CIK per stock-quarter, point-in-time ---
     fclient = build_fundamentals_client(cfg)
-    ticker_cik = load_ticker_cik_map(fclient)
+    panel["cik"], panel["cik_source"], cik_cov = _map_ciks(cfg, panel, fclient)
+
+    # --- size/value baseline from SEC XBRL ---
     provider = FundamentalsProvider(fclient)
-    cik_tickers = [t for t in tickers if _norm_ticker(t) in ticker_cik]
+    cik_tickers = sorted(panel.loc[panel["cik"].notna(), "ticker"].dropna().unique())
     logger.info("Loading as-traded closes for %d tickers with a CIK match", len(cik_tickers))
     raw_closes = load_raw_closes(cik_tickers, cfg.path("raw") / "prices_raw", start=start)
-    baseline = build_baseline_features(panel, raw_closes, provider, ticker_cik)
+    baseline = build_baseline_features(panel, raw_closes, provider, panel["cik"])
 
     model_panel = panel.merge(baseline, on=["period", "composite_figi"], how="left")
     out = cfg.path("processed") / "model_panel.parquet"
@@ -105,6 +160,7 @@ def main() -> None:
         "tickers_with_prices": len(price_lookup),
         "tickers_total": len(tickers),
         "tickers_with_cik": len(cik_tickers),
+        **cik_cov,
         "tickers_with_as_traded_prices": len(raw_closes),
         "with_shares_outstanding": int(model_panel["shares_outstanding"].notna().sum()),
         "with_market_cap": int(model_panel["market_cap"].notna().sum()),

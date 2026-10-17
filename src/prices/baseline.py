@@ -31,7 +31,7 @@ import numpy as np
 import pandas as pd
 
 from .as_traded import as_traded_prices
-from .fundamentals import FundamentalsProvider, _norm_ticker
+from .fundamentals import FundamentalsProvider
 
 logger = logging.getLogger("breadth13f.baseline")
 
@@ -53,19 +53,21 @@ def build_baseline_features(
     panel: pd.DataFrame,
     raw_closes: dict[str, pd.DataFrame],
     provider: FundamentalsProvider,
-    ticker_cik: dict[str, int],
+    ciks,
 ) -> pd.DataFrame:
     """Size/value baseline features and their audit inputs per (period, security).
 
     ``raw_closes`` maps ticker -> ``(date, close, split)`` from
-    :func:`as_traded.load_raw_closes`. Besides the three features, the output
+    :func:`as_traded.load_raw_closes`. ``ciks`` holds each panel row's issuer
+    CIK (missing where unmapped), from the point-in-time map in
+    :mod:`src.mapping.issuer_cik`. Besides the three features, the output
     keeps the inputs (``price_traded``, ``shares_outstanding``, ``book_equity``,
     ``net_income_annual``), the unfiltered ``market_cap``, the ``io_ratio`` and
     the ``cap_ok`` flag, so every feature value can be audited.
     """
     n = len(panel)
     formations = pd.to_datetime(panel["formation_date"]).to_numpy()
-    tickers = panel["ticker"].to_numpy()
+    ciks = pd.Series(ciks, dtype="Int64").to_numpy(dtype=object, na_value=None)
 
     price = np.full(n, np.nan)
     for ticker, idx in panel.groupby("ticker").indices.items():
@@ -79,10 +81,10 @@ def build_baseline_features(
     equity = np.full(n, np.nan)
     income = np.full(n, np.nan)
     for i in range(n):
-        ticker = tickers[i]
-        cik = ticker_cik.get(_norm_ticker(str(ticker))) if isinstance(ticker, str) and ticker else None
+        cik = ciks[i]
         if cik is None:
             continue
+        cik = int(cik)
         key = (cik, pd.Timestamp(formations[i]))
         if key not in fund_cache:
             fund_cache[key] = provider.get_asof(cik, key[1])

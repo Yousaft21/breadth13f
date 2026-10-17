@@ -11,8 +11,11 @@ filing date (``filed``): only facts filed on/before the formation date and whose
 reporting period ended on/before it are eligible. That makes the baseline a
 legitimate point-in-time control rather than a look-ahead snapshot.
 
-Mapping: 13F gives *issuer* CUSIPs; the XBRL API is keyed by issuer CIK. We map
-the security master's ticker to a CIK via SEC ``company_tickers.json``.
+Mapping: 13F gives *issuer* CUSIPs; the XBRL API is keyed by issuer CIK. The
+point-in-time CUSIP -> CIK map lives in :mod:`src.mapping.issuer_cik`;
+:func:`load_ticker_cik_map` (SEC's *current* ``company_tickers.json``) only
+fills rows it leaves empty, since current symbology misses firms that later
+failed, delisted or changed ticker.
 """
 
 from __future__ import annotations

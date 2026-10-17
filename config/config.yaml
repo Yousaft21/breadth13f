@@ -55,6 +55,18 @@ pit:
 universe:
   min_holders: 5
 
+# --- Issuer CIK mapping (size/value baseline) --------------------------------
+# Stock-quarters are mapped to SEC CIKs point-in-time by matching 13F issuer
+# names to the names on EDGAR periodic reports (src/mapping/issuer_cik.py). A
+# CIK qualifies if it filed under the matched name within recency_days before
+# formation; the winner needs min_support of the quarter's 13F holding rows.
+# ticker_fallback fills rows the name match misses from SEC's *current*
+# company_tickers.json; that only reaches surviving tickers, so keep it small.
+issuer_cik:
+  recency_days: 730
+  min_support: 0.5
+  ticker_fallback: true
+
 # --- Cross-validation (purged & embargoed) ----------------------------------
 cv:
   n_splits: 5

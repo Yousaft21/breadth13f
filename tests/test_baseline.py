@@ -53,7 +53,7 @@ def test_baseline_cap_is_point_in_time():
     panel = pd.DataFrame({"period": [pd.Timestamp("2019-12-31")], "composite_figi": ["F1"],
                           "formation_date": [formation], "ticker": ["XYZ"],
                           "log_total_inst_shares": [np.log(6e7)]})   # 60% institutional
-    caps = [build_baseline_features(panel, {"XYZ": raw}, _Fundamentals(), {"XYZ": 1})
+    caps = [build_baseline_features(panel, {"XYZ": raw}, _Fundamentals(), [1])
             for raw in (before, after)]
     for b in caps:
         assert np.isclose(b["market_cap"].iloc[0], 50.0 * 1e8)
@@ -70,10 +70,20 @@ def test_failed_share_count_check_blanks_features():
                           "formation_date": [raw["date"].iloc[20]], "ticker": ["XYZ"],
                           # 13F holders report 50x the XBRL share count -> bad count
                           "log_total_inst_shares": [np.log(5e9)]})
-    b = build_baseline_features(panel, {"XYZ": raw}, _Fundamentals(), {"XYZ": 1})
+    b = build_baseline_features(panel, {"XYZ": raw}, _Fundamentals(), [1])
     assert not b["cap_ok"].iloc[0]
     assert np.isclose(b["io_ratio"].iloc[0], 50.0)
     assert b[["log_market_cap", "book_to_market", "earnings_yield"]].iloc[0].isna().all()
+
+
+def test_rows_without_a_cik_get_no_features():
+    raw = _raw(np.full(30, 50.0), np.zeros(30))
+    panel = pd.DataFrame({"period": [pd.Timestamp("2019-12-31")] * 2, "composite_figi": ["F1", "F2"],
+                          "formation_date": [raw["date"].iloc[20]] * 2, "ticker": ["XYZ", "XYZ"],
+                          "log_total_inst_shares": [np.log(6e7)] * 2})
+    b = build_baseline_features(panel, {"XYZ": raw}, _Fundamentals(), pd.array([1, pd.NA], dtype="Int64"))
+    assert np.isclose(b["market_cap"].iloc[0], 50.0 * 1e8)
+    assert np.isnan(b["shares_outstanding"].iloc[1]) and not b["cap_ok"].iloc[1]
 
 
 def test_market_cap_ok_bounds():
