@@ -54,6 +54,26 @@ def price_asof(
     return float(prices[idx])
 
 
+def value_asof_before(
+    dates: np.ndarray,
+    values: np.ndarray,
+    target: pd.Timestamp,
+    max_staleness_days: int = 10,
+) -> float:
+    """Last observation on or before ``target`` (never after it — no look-ahead).
+
+    Returns ``NaN`` if there is no observation within ``max_staleness_days``
+    before the target (e.g. the series had not started trading yet).
+    """
+    if len(dates) == 0:
+        return np.nan
+    t = np.datetime64(pd.Timestamp(target), "ns")
+    idx = np.searchsorted(dates, t, side="right") - 1
+    if idx < 0 or (t - dates[idx]) / np.timedelta64(1, "D") > max_staleness_days:
+        return np.nan
+    return float(values[idx])
+
+
 def forward_total_return(
     dates: np.ndarray,
     prices: np.ndarray,

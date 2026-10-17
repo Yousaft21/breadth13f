@@ -2,9 +2,14 @@
   "rows": 206684,
   "tickers_with_prices": 7930,
   "tickers_total": 8131,
-  "with_size": 120958,
-  "with_book_to_market": 112002,
-  "with_earnings_yield": 105977,
+  "tickers_with_cik": 5007,
+  "tickers_with_as_traded_prices": 4948,
+  "with_shares_outstanding": 124828,
+  "with_market_cap": 122231,
+  "market_cap_failed_checks": 10094,
+  "with_size": 112137,
+  "with_book_to_market": 105160,
+  "with_earnings_yield": 99922,
   "label_12m_nonnull": 166634,
   "label_6m_nonnull": 177311
 }

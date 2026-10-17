@@ -5,7 +5,9 @@ Assembles the modeling panel from the breadth panel:
 1. Load prices (yfinance -> Stooq, cached per ticker) for every panel ticker.
 2. Compute forward 6/12-month total returns and per-period delisting-dropout
    diagnostics.
-3. Build the point-in-time size/value baseline from SEC XBRL fundamentals.
+3. Build the point-in-time size/value baseline from SEC XBRL fundamentals and
+   **as-traded** prices (raw closes + split history, cached per ticker) for the
+   tickers that resolve to an SEC CIK.
 4. Merge everything into ``data/processed/model_panel.parquet``.
 
 Outputs coverage/diagnostic tables to ``results/tables/``.
@@ -22,8 +24,9 @@ from tqdm import tqdm
 
 from ..config import load_config, setup_logging
 from ..ingest.edgar_client import EdgarClient
+from .as_traded import load_raw_closes
 from .baseline import build_baseline_features
-from .fundamentals import FundamentalsProvider, load_ticker_cik_map
+from .fundamentals import FundamentalsProvider, _norm_ticker, load_ticker_cik_map
 from .returns import compute_forward_returns, load_price_series
 
 logger = logging.getLogger("breadth13f.prices")
@@ -87,7 +90,10 @@ def main() -> None:
     fclient = build_fundamentals_client(cfg)
     ticker_cik = load_ticker_cik_map(fclient)
     provider = FundamentalsProvider(fclient)
-    baseline = build_baseline_features(panel, price_lookup, provider, ticker_cik)
+    cik_tickers = [t for t in tickers if _norm_ticker(t) in ticker_cik]
+    logger.info("Loading as-traded closes for %d tickers with a CIK match", len(cik_tickers))
+    raw_closes = load_raw_closes(cik_tickers, cfg.path("raw") / "prices_raw", start=start)
+    baseline = build_baseline_features(panel, raw_closes, provider, ticker_cik)
 
     model_panel = panel.merge(baseline, on=["period", "composite_figi"], how="left")
     out = cfg.path("processed") / "model_panel.parquet"
@@ -98,6 +104,11 @@ def main() -> None:
         "rows": int(len(model_panel)),
         "tickers_with_prices": len(price_lookup),
         "tickers_total": len(tickers),
+        "tickers_with_cik": len(cik_tickers),
+        "tickers_with_as_traded_prices": len(raw_closes),
+        "with_shares_outstanding": int(model_panel["shares_outstanding"].notna().sum()),
+        "with_market_cap": int(model_panel["market_cap"].notna().sum()),
+        "market_cap_failed_checks": int((model_panel["market_cap"].notna() & ~model_panel["cap_ok"]).sum()),
         "with_size": int(model_panel["log_market_cap"].notna().sum()),
         "with_book_to_market": int(model_panel["book_to_market"].notna().sum()),
         "with_earnings_yield": int(model_panel["earnings_yield"].notna().sum()),

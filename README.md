@@ -25,18 +25,30 @@ the **12-month** horizon:
 
 | Model | Mean rank IC | ICIR | t-stat | Decile L/S |
 |-------|:---:|:---:|:---:|:---:|
-| Size/value baseline | 0.062 | 0.75 | 5.0 | — |
-| Full breadth + baseline | 0.072 | 0.79 | 5.3 | +7.7% |
-| **Breadth model, OOS-pruned** | **0.082** | **1.00** | **6.7** | **+9.7%** |
+| Size/value baseline | 0.0550 | 0.81 | 5.5 | — |
+| **Full breadth + baseline** | **0.0645** | **0.82** | **5.5** | **+5.2%** |
+| Breadth model, OOS-pruned | 0.0772 | 1.09 | 7.3 | +8.6% |
 
 The breadth features add **+0.0095 mean rank IC over the size/value baseline**
-(the incremental effect), and out-of-sample backward elimination — which drops
-features whose removal does not reduce OOS IC — raises IC from 0.072 to 0.082 by
-discarding six redundant/noisy features. The classic Chen–Hong–Stein Δbreadth
-predictor **survives** pruning at 12 months. Results are consistent at the
-6-month horizon (see below). These are quarterly rank ICs; the signal is real
-and statistically significant but economically modest, as expected for a single
-quarterly ownership signal.
+(the incremental effect). Out-of-sample backward elimination — which drops
+features whose removal does not reduce OOS IC — raises IC from 0.0645 to 0.0772
+by discarding seven features, but that figure is **optimistic**: pruning chose
+features on the same folds it is evaluated on, so the full model is the honest
+headline. The classic Chen–Hong–Stein Δbreadth predictor **survives** pruning at
+both horizons. Results are consistent at the 6-month horizon (see below). These
+are quarterly rank ICs; the signal is real and statistically significant but
+economically modest, as expected for a single quarterly ownership signal. The
+decile spreads are 12-month averages; a quarterly-rebalanced D1−D10 portfolio is
+not statistically significant, and the edge sits in the long leg (validation Q6).
+
+> **Correction (resolved).** An earlier version of this table reported a full-model
+> IC of 0.072 (baseline 0.062, pruned 0.082). The
+> [validation notebook](notebooks/validation_questions.ipynb) found that the
+> size/value baseline computed market cap from split- and dividend-adjusted prices,
+> which leaks later splits into earlier dates (a look-ahead). Phase 4 now uses
+> as-traded prices and rejects implausible share counts; all numbers here come
+> from the fixed pipeline. The fix lowered the baseline and full-model ICs by
+> about 0.007 each and left **breadth's incremental IC unchanged at +0.0095**.
 
 ## Status — all phases complete
 
@@ -51,9 +63,10 @@ quarterly ownership signal.
 | 7 | **Write-up** — results tables, plots, limitations | ✅ |
 
 Built on the full 2014–2026 crawl (51 filing quarters, **68.9M… 116.8M holding
-rows**, ~117k distinct CUSIPs). 39 unit tests pass; the two most bug-prone pieces
+rows**, ~117k distinct CUSIPs). 50 unit tests pass; the two most bug-prone pieces
 — the 13F XML parser and the purged/embargoed CV splitter — carry dedicated
-tests, as do the breadth math, the point-in-time fundamentals selection, and the
+tests, as do the breadth math, the point-in-time fundamentals selection, the
+point-in-time market cap (a later split must not change an earlier cap), and the
 return math.
 
 ## Data
@@ -85,7 +98,7 @@ config/            # dates, universe filters, CV params (single YAML, config-dri
 src/
   ingest/          # EDGAR crawler + 13F XML parser  (Phase 1)
   mapping/         # CUSIP→ticker, security master   (Phase 2)
-  prices/          # forward returns                 (Phase 4)
+  prices/          # forward returns + size/value baseline (Phase 4)
   features/        # point-in-time breadth panel     (Phase 3)
   backtest/        # purged/embargoed CV, model, IC  (Phase 5)
   viz/             # IC decay, decile spreads, SHAP  (Phase 6)
@@ -122,6 +135,15 @@ selected as-of each formation date using each fact's own SEC filing date — a
 genuine PIT control, not a current snapshot. Issuer identity is resolved
 ticker→CIK via SEC `company_tickers.json`.
 
+The price is the **as-traded** close on or before the formation date: yfinance's
+dividend-unadjusted close with later splits undone
+([`src/prices/as_traded.py`](src/prices/as_traded.py)). The adjusted close used
+for returns would be wrong here: it is rescaled for splits and dividends *after*
+the date, which understates the earlier size of stocks that went on to split.
+Each cap is also checked against 13F holdings: if 13F shares held ÷ XBRL shares
+outstanding falls outside 1%–300% (ADR share ratios, XBRL scale errors) or the
+cap exceeds $6T, the size/value features are left missing rather than wrong.
+
 ## Evaluation
 
 Per formation date: Spearman **rank IC**; aggregated to mean IC, **ICIR**,
@@ -136,7 +158,7 @@ identical folds.
 ```bash
 python -m venv .venv && .venv/Scripts/activate      # Python 3.12
 pip install -r requirements.txt
-pytest                                              # 39 unit tests
+pytest                                              # 50 unit tests
 
 # Credentials are read from the environment or an auto-loaded, gitignored .env:
 #   EDGAR_USER_AGENT="your-project your-email@example.com"   # SEC fair-access policy
@@ -183,25 +205,40 @@ Out-of-sample performance under purged & embargoed CV (LightGBM ranker):
 
 | Horizon | Model | Mean IC | ICIR | t | Decile L/S | Turnover |
 |:---:|---|:---:|:---:|:---:|:---:|:---:|
-| 12m | Size/value baseline | 0.062 | 0.75 | 5.0 | — | — |
-| 12m | Full (16 features) | 0.072 | 0.79 | 5.3 | +7.7% | 0.44 |
-| 12m | **OOS-pruned (10 features)** | **0.082** | **1.00** | **6.7** | **+9.7%** | 0.42 |
-| 6m | Size/value baseline | 0.057 | 0.68 | 4.7 | — | — |
-| 6m | Full (16 features) | 0.067 | 0.84 | 5.8 | +3.4% | 0.54 |
-| 6m | **OOS-pruned (9 features)** | **0.075** | **0.99** | **6.8** | **+3.8%** | 0.52 |
+| 12m | Size/value baseline | 0.0550 | 0.81 | 5.5 | — | — |
+| 12m | **Full (16 features)** | **0.0645** | **0.82** | **5.5** | **+5.2%** | 0.46 |
+| 12m | OOS-pruned (9 features)\* | 0.0772 | 1.09 | 7.3 | +8.6% | 0.41 |
+| 6m | Size/value baseline | 0.0525 | 0.73 | 5.0 | — | — |
+| 6m | **Full (16 features)** | **0.0625** | **0.82** | **5.6** | **+2.1%** | 0.57 |
+| 6m | OOS-pruned (9 features)\* | 0.0702 | 1.03 | 7.1 | +2.5% | 0.57 |
 
-**Incremental IC of breadth over the size/value baseline: +0.0095 (12m), +0.0101
-(6m).** SHAP attribution shows size, book-to-market and position-size dispersion
-are the largest contributors; the breadth features add a smaller but consistent
-increment. Out-of-sample backward elimination drops features whose removal does
-not reduce OOS IC — at 12m: `delta_hhi, hhi, exit_rate, new_position_rate,
-top10_share, earnings_yield`. The Chen–Hong–Stein Δbreadth predictor survives
-at 12 months (dropping it lowers IC) but is among the dropped at 6 months —
-`delta_breadth_pct` and `breadth_level` carry the breadth signal at both
-horizons. Figures in [`results/figures/`](results/figures): per-period IC,
+\* Optimistic: features were pruned on the same folds the IC is measured on.
+
+**Incremental IC of breadth over the size/value baseline: +0.0095 (12m), +0.0100
+(6m).** SHAP attribution shows the size/value controls (size, book-to-market,
+earnings yield) are the largest contributors, followed by position-size
+dispersion, top-10 concentration and aggregate institutional shares; the breadth
+features add a smaller but consistent increment. Out-of-sample backward
+elimination drops features whose removal does not reduce OOS IC — at 12m:
+`delta_breadth_pct, delta_hhi, top5_share, net_buyer_breadth, exit_rate,
+new_position_rate, earnings_yield`. The Chen–Hong–Stein Δbreadth predictor
+(`delta_breadth`) survives at both horizons (dropping it lowers IC), as do
+`breadth_level`, `hhi` and `log_total_inst_shares`; earnings yield is dropped at
+both despite a large SHAP value, presumably because book-to-market carries much
+the same information. Figures in [`results/figures/`](results/figures): per-period IC,
 decile spread, cumulative long–short, and SHAP importance.
 
-Interpretation: a genuine, statistically significant (t ≈ 5–7 over 45 quarters)
+### Validation
+
+[`notebooks/validation_questions.ipynb`](notebooks/validation_questions.ipynb)
+probes the factor and its data, one question per section, each ending in a chart
+or table: decile monotonicity, surviving features, momentum and size overlap,
+interest-rate regimes, decile stability, cap- vs equal-weighting, and two
+data-quality checks (look-ahead in the market caps, which it found and which is
+now fixed; SEC share-count sanity).
+Helpers live in [`src/backtest/validation.py`](src/backtest/validation.py).
+
+Interpretation: a genuine, statistically significant (t ≈ 5.5 over 45 quarters)
 but economically modest cross-sectional signal, dominated by size/value with a
 small consistent breadth increment — the kind of honest, marginal result
 expected from a single quarterly ownership signal, not an outsized alpha.
@@ -223,10 +260,30 @@ Quantified and structural, in rough order of importance:
 - **Current-symbology mapping.** OpenFIGI returns current, not as-of-date,
   tickers; security identity is keyed on `composite_figi` to guard against
   ticker reuse, but a ticker relabel mid-history is not modelled.
-- **Baseline fundamentals coverage.** SEC-XBRL fundamentals resolve for ~55% of
-  rows (ADRs/foreign issuers file 20-F without us-gaap tags), so the value
-  baseline is partial — though it is genuinely point-in-time (selected by each
-  fact's SEC `filed` date).
+- **Look-ahead in the size/value baseline (resolved).** Market cap was first
+  computed from adjusted closes, which are back-scaled for *later* splits and
+  dividends: 10% of stock-quarters were understated by ≥ 1.5× (AMZN 20×, NVDA 39×
+  at end-2019), so future winners looked small and cheap. Phase 4 now uses
+  as-traded prices. The fix moved the 12m baseline IC from 0.062 to 0.055 and
+  the full model's from 0.072 to 0.0645 (6m: 0.057 → 0.0525 and 0.067 → 0.0625);
+  breadth's increment was unchanged (+0.0095 at 12m; +0.0101 → +0.0100 at 6m).
+  Validation Q7 replays the old features to measure this.
+- **SEC share-count errors (filtered).** 2.7% of scored stock-quarters with a
+  market cap fail a 13F-vs-XBRL share-count check: ADRs (price per ADR, shares
+  counted as ordinary shares) and filing scale errors (validation Q8). Their
+  size/value features are set to missing. The 1% floor on institutional
+  ownership is conservative and also drops some foreign issuers whose caps are
+  roughly right.
+- **Share-count date vs. splits.** The XBRL share count is the latest one filed
+  before formation, so a split between its cover date and the formation date
+  leaves the cap off by the split ratio. Not a look-ahead, and small: 0.7% of
+  scored stock-quarters with a trusted cap had a split in the 100 days before
+  formation.
+- **Baseline fundamentals coverage.** SEC-XBRL fundamentals resolve for ~60% of
+  panel rows (ADRs/foreign issuers file 20-F without us-gaap tags); after the
+  share-count check the size feature covers 54% of panel rows and 76% of the
+  scored universe, so the baseline is partial. The fundamental facts themselves
+  are point-in-time (selected by each fact's SEC `filed` date).
 - **Structural limits of 13F.** Long US-listed positions only, managers with
   ≥ $100M qualifying AUM, quarterly granularity, 45-day filing lag — no shorts,
   no sub-threshold or non-13F holders. The signal can only ever reflect this

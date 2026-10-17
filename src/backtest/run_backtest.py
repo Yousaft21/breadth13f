@@ -9,7 +9,9 @@ Loads the modeling panel, applies the universe filter, then for the primary
 * ranks features by out-of-sample mean|SHAP|, **prunes** negligible ones, and
   re-runs to report IC before vs after pruning.
 
-Writes metric tables to ``results/tables/`` and figures to ``results/figures/``.
+Writes metric tables to ``results/tables/`` (one JSON per horizon, plus a
+``summary.csv`` across all horizons run so far) and figures to
+``results/figures/``.
 """
 
 from __future__ import annotations
@@ -17,11 +19,13 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+from pathlib import Path
 
 import pandas as pd
 
 from ..config import load_config, setup_logging
 from ..features.breadth import FEATURE_COLUMNS as BREADTH_FEATURES
+from ..prices.baseline import BASELINE_FEATURES
 from ..viz.plots import (
     plot_cumulative_ls,
     plot_decile_spread,
@@ -35,8 +39,6 @@ from .model import evaluate, run_cv_predictions, run_full_vs_baseline
 
 logger = logging.getLogger("breadth13f.backtest")
 
-BASELINE_FEATURES = ["log_market_cap", "book_to_market", "earnings_yield"]
-
 
 def _apply_universe(panel: pd.DataFrame, min_holders: int, label_col: str) -> pd.DataFrame:
     before = len(panel)
@@ -49,6 +51,29 @@ def _apply_universe(panel: pd.DataFrame, min_holders: int, label_col: str) -> pd
 def _serialize_result(res) -> dict:
     return {"summary": res.summary,
             "ic_by_period": {str(pd.Timestamp(k).date()): float(v) for k, v in res.ic.items()}}
+
+
+def write_summary(tables: Path) -> pd.DataFrame:
+    """Collect every ``backtest_results_<h>m.json`` into ``summary.csv``."""
+    rows = []
+    for path in tables.glob("backtest_results_*m.json"):
+        r = json.loads(path.read_text(encoding="utf-8"))
+        n_full = len(r["kept_features"]) + len(r["dropped_features"])
+        for model, key, n_feat in [("baseline", "baseline_model", len(BASELINE_FEATURES)),
+                                   ("full", "full_model", n_full),
+                                   ("pruned", "pruned_model", len(r["kept_features"]))]:
+            s = r[key]["summary"]
+            rows.append({
+                "horizon_m": r["horizon_months"], "model": model,
+                "mean_ic": round(s["mean_ic"], 4), "icir": round(s["icir"], 2),
+                "t_stat": round(s["t_stat"], 2), "hit_rate": round(s["hit_rate"], 2),
+                "decile_ls": round(s["ls_mean_ls_spread"], 4),
+                "turnover": round(s["mean_top_turnover"], 3),
+                "n_features": n_feat, "n_periods": s["n_periods"],
+            })
+    out = pd.DataFrame(rows).sort_values(["horizon_m", "model"], ascending=[False, True])
+    out.to_csv(tables / "summary.csv", index=False)
+    return out
 
 
 def main() -> None:
@@ -124,6 +149,7 @@ def main() -> None:
         plot_decile_spread(spread, figs / f"decile_spread_{horizon}m.png")
         plot_cumulative_ls(spread, figs / f"cumulative_ls_{horizon}m.png")
     plot_shap_importance(elim["importance"], figs / f"shap_importance_{horizon}m.png")
+    write_summary(tables)
 
     logger.info(
         "DONE %dm | baseline IC %.4f | full IC %.4f (ICIR %.2f, t %.2f) | incremental %.4f | "

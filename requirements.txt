@@ -19,3 +19,5 @@ matplotlib>=3.8
 
 # Dev / test
 pytest>=8.2
+nbconvert>=7.16        # execute notebooks: jupyter nbconvert --execute
+ipykernel>=6.29

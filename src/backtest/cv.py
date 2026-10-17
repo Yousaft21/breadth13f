@@ -67,15 +67,7 @@ class PurgedKFold:
         all_pos = np.arange(n)
         embargo = pd.Timedelta(days=self.embargo_days)
 
-        unique_dates = np.array(sorted(formation.unique()))
-        if len(unique_dates) < self.n_splits:
-            raise ValueError(
-                f"n_splits={self.n_splits} exceeds number of formation dates "
-                f"({len(unique_dates)})."
-            )
-        date_folds = np.array_split(unique_dates, self.n_splits)
-
-        for fold_dates in date_folds:
+        for fold_dates in self.fold_dates(formation):
             fold_set = set(pd.to_datetime(fold_dates))
             test_mask = formation.isin(fold_set).to_numpy()
             test_idx = all_pos[test_mask]
@@ -94,6 +86,16 @@ class PurgedKFold:
             train_mask = (~test_mask) & (~overlaps)
             train_idx = all_pos[train_mask]
             yield train_idx, test_idx
+
+    def fold_dates(self, formation: pd.Series | np.ndarray) -> list[np.ndarray]:
+        """Chronological test-fold date groups (whole formation dates per fold)."""
+        unique_dates = np.array(sorted(pd.to_datetime(pd.Series(np.asarray(formation))).unique()))
+        if len(unique_dates) < self.n_splits:
+            raise ValueError(
+                f"n_splits={self.n_splits} exceeds number of formation dates "
+                f"({len(unique_dates)})."
+            )
+        return np.array_split(unique_dates, self.n_splits)
 
     def get_n_splits(self, *args, **kwargs) -> int:
         return self.n_splits
