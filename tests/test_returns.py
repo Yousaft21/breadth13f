@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from src.prices.returns import forward_total_return, price_asof
+from src.prices.returns import compute_forward_returns, forward_total_return, price_asof, price_data_cutoff
 
 
 def _series(start="2020-01-01", periods=400):
@@ -60,3 +60,30 @@ def test_forward_return_never_present():
     ret, had0, had1 = forward_total_return(dates, prices, pd.Timestamp("2020-01-06"), 12)
     assert had0 is False and had1 is False
     assert np.isnan(ret)
+
+
+def test_price_data_cutoff_is_most_common_series_end():
+    ends = [pd.Timestamp("2026-07-17")] * 3 + [pd.Timestamp("2026-10-16"), pd.Timestamp("2024-03-01")]
+    assert pd.Timestamp(price_data_cutoff(ends)) == pd.Timestamp("2026-07-17")
+    assert pd.isna(price_data_cutoff([]))
+
+
+def test_late_fetched_series_gets_no_label_past_the_cutoff():
+    # Three series fetched up to mid-2021; one fetched later, running to 2022.
+    early = pd.DataFrame({"date": pd.bdate_range("2020-01-01", "2021-06-30")})
+    early["adj_close"] = 100.0
+    late = pd.DataFrame({"date": pd.bdate_range("2020-01-01", "2022-06-30")})
+    late["adj_close"] = 100.0
+    lookup = {"A": early, "B": early, "C": early, "LATE": late}
+    panel = pd.DataFrame({
+        "period": ["2019Q4"] * 4 + ["2020Q4"] * 4,
+        "formation_date": [pd.Timestamp("2020-02-14")] * 4 + [pd.Timestamp("2021-02-15")] * 4,
+        "ticker": ["A", "B", "C", "LATE"] * 2,
+    })
+    out, diag = compute_forward_returns(panel, lookup, horizons=(12,))
+    # 2020-02 + 12m ends before the cutoff: everyone labelled.
+    assert out["fwd_ret_12m"].iloc[:4].notna().all()
+    # 2021-02 + 12m ends after the cutoff: no one, not even LATE, is labelled,
+    # and the period is not labelable (so not counted as delisting dropout).
+    assert out["fwd_ret_12m"].iloc[4:].isna().all()
+    assert diag.set_index("period")["labelable"].to_dict() == {"2019Q4": True, "2020Q4": False}

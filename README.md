@@ -19,23 +19,24 @@ numbers are whatever the pipeline produces — including null or negative result
 
 ## Headline result
 
-Over **45 quarterly formation dates (2014-Q1 … 2025-Q1)** and ~2,850 US-listed
+Over **45 quarterly formation dates (2014-Q1 … 2025-Q1)** and ~2,870 US-listed
 equities per date, out-of-sample under purged & embargoed cross-validation, at
 the **12-month** horizon:
 
 | Model | Mean rank IC | ICIR | t-stat | Decile L/S |
 |-------|:---:|:---:|:---:|:---:|
-| Size/value baseline | 0.0550 | 0.81 | 5.5 | — |
-| **Full breadth + baseline** | **0.0645** | **0.82** | **5.5** | **+5.2%** |
-| Breadth model, OOS-pruned | 0.0772 | 1.09 | 7.3 | +8.6% |
+| Size/value baseline | 0.0532 | 0.80 | 5.4 | — |
+| **Full breadth + baseline** | **0.0644** | **0.82** | **5.5** | **+5.8%** |
+| Breadth model, OOS-pruned | 0.0677 | 0.95 | 6.4 | +5.3% |
 
-The breadth features add **+0.0095 mean rank IC over the size/value baseline**
+The breadth features add **+0.0112 mean rank IC over the size/value baseline**
 (the incremental effect). Out-of-sample backward elimination — which drops
-features whose removal does not reduce OOS IC — raises IC from 0.0645 to 0.0772
-by discarding seven features, but that figure is **optimistic**: pruning chose
+features whose removal does not reduce OOS IC — raises IC from 0.0644 to 0.0677
+by discarding four features, but that figure is **optimistic**: pruning chose
 features on the same folds it is evaluated on, so the full model is the honest
-headline. The classic Chen–Hong–Stein Δbreadth predictor **survives** pruning at
-both horizons. Results are consistent at the 6-month horizon (see below). These
+headline. It is also unstable: adding 24 share-class names (below) changed which
+features it drops and moved the pruned IC from 0.0772 to 0.0677. The classic
+Chen–Hong–Stein Δbreadth predictor **survives** pruning at both horizons. Results are consistent at the 6-month horizon (see below). These
 are quarterly rank ICs; the signal is real and statistically significant but
 economically modest, as expected for a single quarterly ownership signal. The
 decile spreads are 12-month averages; a quarterly-rebalanced D1−D10 portfolio is
@@ -49,6 +50,15 @@ not statistically significant, and the edge sits in the long leg (validation Q6)
 > as-traded prices and rejects implausible share counts; all numbers here come
 > from the fixed pipeline. The fix lowered the baseline and full-model ICs by
 > about 0.007 each and left **breadth's incremental IC unchanged at +0.0095**.
+>
+> **Universe fix.** Share-class tickers (BRK/B, BF/B, MOG/A, … — 24 names, ~0.7%
+> of scored rows) had been silently dropped: OpenFIGI writes them with a slash,
+> but Yahoo and Stooq expect a dash (BRK-B), so they never got prices. With them
+> included, the full-model IC is unchanged (0.0645 → 0.0644) while the baseline
+> falls (0.0550 → 0.0532), so the increment rises from +0.0095 to +0.0112. The
+> rise is probably partly mechanical: most of these issuers report no single
+> share count to the SEC, so they have breadth features but no size/value
+> features, and only the full model can rank them.
 
 ## Status — all phases complete
 
@@ -198,32 +208,32 @@ Universe & coverage (full 2014–2026 build):
 | CUSIP → any instrument (OpenFIGI) | 45.0% of CUSIPs / **90% holdings-weighted** |
 | **US-listed equity universe** (common + ADR + REIT) | **8,287** |
 | Breadth panel | 50 periods, 8,151 securities, 206,684 rows |
-| Scored universe (≥5 holders, labelable) | ~2,850 securities / formation date |
+| Scored universe (≥5 holders, labelable) | ~2,870 securities / formation date |
 | Within-window delisting dropout (12m, labelable) | 0.02% mean (33 names) |
 
 Out-of-sample performance under purged & embargoed CV (LightGBM ranker):
 
 | Horizon | Model | Mean IC | ICIR | t | Decile L/S | Turnover |
 |:---:|---|:---:|:---:|:---:|:---:|:---:|
-| 12m | Size/value baseline | 0.0550 | 0.81 | 5.5 | — | — |
-| 12m | **Full (16 features)** | **0.0645** | **0.82** | **5.5** | **+5.2%** | 0.46 |
-| 12m | OOS-pruned (9 features)\* | 0.0772 | 1.09 | 7.3 | +8.6% | 0.41 |
-| 6m | Size/value baseline | 0.0525 | 0.73 | 5.0 | — | — |
-| 6m | **Full (16 features)** | **0.0625** | **0.82** | **5.6** | **+2.1%** | 0.57 |
-| 6m | OOS-pruned (9 features)\* | 0.0702 | 1.03 | 7.1 | +2.5% | 0.57 |
+| 12m | Size/value baseline | 0.0532 | 0.80 | 5.4 | — | — |
+| 12m | **Full (16 features)** | **0.0644** | **0.82** | **5.5** | **+5.8%** | 0.46 |
+| 12m | OOS-pruned (12 features)\* | 0.0677 | 0.95 | 6.4 | +5.3% | 0.45 |
+| 6m | Size/value baseline | 0.0508 | 0.71 | 4.9 | — | — |
+| 6m | **Full (16 features)** | **0.0616** | **0.83** | **5.7** | **+2.1%** | 0.58 |
+| 6m | OOS-pruned (11 features)\* | 0.0694 | 1.00 | 6.8 | +2.6% | 0.55 |
 
 \* Optimistic: features were pruned on the same folds the IC is measured on.
 
-**Incremental IC of breadth over the size/value baseline: +0.0095 (12m), +0.0100
+**Incremental IC of breadth over the size/value baseline: +0.0112 (12m), +0.0108
 (6m).** SHAP attribution shows the size/value controls (size, book-to-market,
 earnings yield) are the largest contributors, followed by position-size
 dispersion, top-10 concentration and aggregate institutional shares; the breadth
 features add a smaller but consistent increment. Out-of-sample backward
 elimination drops features whose removal does not reduce OOS IC — at 12m:
-`delta_breadth_pct, delta_hhi, top5_share, net_buyer_breadth, exit_rate,
-new_position_rate, earnings_yield`. The Chen–Hong–Stein Δbreadth predictor
-(`delta_breadth`) survives at both horizons (dropping it lowers IC), as do
-`breadth_level`, `hhi` and `log_total_inst_shares`; earnings yield is dropped at
+`top5_share, delta_total_inst_shares_pct, exit_rate, earnings_yield`. The
+Chen–Hong–Stein Δbreadth predictor (`delta_breadth`) survives at both horizons
+(dropping it lowers IC), as do `hhi` and `log_total_inst_shares`
+(`breadth_level` survives at 12m but not 6m); earnings yield is dropped at
 both despite a large SHAP value, presumably because book-to-market carries much
 the same information. Figures in [`results/figures/`](results/figures): per-period IC,
 decile spread, cumulative long–short, and SHAP importance.
@@ -250,7 +260,7 @@ Quantified and structural, in rough order of importance:
 - **Survivorship / delisting bias (free price data).** yfinance/Stooq carry no
   delisting returns and drop delisted tickers entirely. Within-window dropout is
   tiny (0.02%), but that *understates* the bias: the larger effect is names
-  absent from the feed up front — ~2.5% of panel tickers had no usable price,
+  absent from the feed up front — ~2.2% of panel tickers had no usable price,
   plus unmapped CUSIPs. Because delisted names skew to poor performers, measured
   returns are biased **optimistically**. No point-in-time index membership is
   used, so the universe is reconstructed, not survivorship-free.
@@ -267,8 +277,9 @@ Quantified and structural, in rough order of importance:
   as-traded prices. The fix moved the 12m baseline IC from 0.062 to 0.055 and
   the full model's from 0.072 to 0.0645 (6m: 0.057 → 0.0525 and 0.067 → 0.0625);
   breadth's increment was unchanged (+0.0095 at 12m; +0.0101 → +0.0100 at 6m).
+  (These are before share-class tickers were added; see the universe fix above.)
   Validation Q7 replays the old features to measure this.
-- **SEC share-count errors (filtered).** 2.7% of scored stock-quarters with a
+- **SEC share-count errors (filtered).** 2.9% of scored stock-quarters with a
   market cap fail a 13F-vs-XBRL share-count check: ADRs (price per ADR, shares
   counted as ordinary shares) and filing scale errors (validation Q8). Their
   size/value features are set to missing. The 1% floor on institutional
@@ -281,8 +292,10 @@ Quantified and structural, in rough order of importance:
   formation.
 - **Baseline fundamentals coverage.** SEC-XBRL fundamentals resolve for ~60% of
   panel rows (ADRs/foreign issuers file 20-F without us-gaap tags); after the
-  share-count check the size feature covers 54% of panel rows and 76% of the
-  scored universe, so the baseline is partial. The fundamental facts themselves
+  share-count check the size feature covers 54% of panel rows and 75% of the
+  scored universe, so the baseline is partial. Dual-class issuers (GOOGL/GOOG,
+  BRK/A/B, BF/A/B, …) mostly report no undimensioned share count, so they get
+  no size/value features. The fundamental facts themselves
   are point-in-time (selected by each fact's SEC `filed` date).
 - **Structural limits of 13F.** Long US-listed positions only, managers with
   ≥ $100M qualifying AUM, quarterly granularity, 45-day filing lag — no shorts,

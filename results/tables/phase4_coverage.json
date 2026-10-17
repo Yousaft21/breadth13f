@@ -1,15 +1,15 @@
 {
   "rows": 206684,
-  "tickers_with_prices": 7930,
+  "tickers_with_prices": 7954,
   "tickers_total": 8131,
   "tickers_with_cik": 5007,
-  "tickers_with_as_traded_prices": 4948,
+  "tickers_with_as_traded_prices": 4972,
   "with_shares_outstanding": 124828,
-  "with_market_cap": 122231,
-  "market_cap_failed_checks": 10094,
-  "with_size": 112137,
-  "with_book_to_market": 105160,
-  "with_earnings_yield": 99922,
-  "label_12m_nonnull": 166634,
-  "label_6m_nonnull": 177311
+  "with_market_cap": 122544,
+  "market_cap_failed_checks": 10244,
+  "with_size": 112300,
+  "with_book_to_market": 105323,
+  "with_earnings_yield": 100038,
+  "label_12m_nonnull": 167662,
+  "label_6m_nonnull": 178387
 }

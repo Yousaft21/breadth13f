@@ -31,6 +31,7 @@ from ..prices.returns import (
     forward_total_return,
     load_price_series,
     price_asof,
+    price_data_cutoff,
     value_asof_before,
 )
 from .cv import PurgedKFold
@@ -86,6 +87,9 @@ def attach_price_features(df: pd.DataFrame, price_dir: Path) -> pd.DataFrame:
             fwd3[i] = forward_total_return(dates, px, f, 3)[0]
             mom[i] = momentum_12_1(dates, px, f)
             p0[i] = price_asof(dates, px, f)
+    # Same cutoff as Phase 4: no label from a series fetched later than the rest.
+    cutoff = price_data_cutoff([d[-1] for d, _ in prices.values()])
+    fwd3[(pd.DatetimeIndex(formations) + pd.DateOffset(months=3)).to_numpy() > cutoff] = np.nan
     df["fwd_ret_3m"] = fwd3
     df["mom_12_1"] = mom
     df["price_formation"] = p0

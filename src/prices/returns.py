@@ -98,9 +98,37 @@ def forward_total_return(
 
 
 # --- price fetching / caching ----------------------------------------------
+def yahoo_symbol(ticker: str) -> str:
+    """The symbol to request from yfinance/Stooq for a panel ticker.
+
+    OpenFIGI writes share classes with a slash (``BRK/B``, ``MOG/A``); Yahoo and
+    Stooq use a dash (``BRK-B``). Requested verbatim, these names come back empty
+    and silently drop out of the universe. The panel keeps OpenFIGI's form; only
+    the request is translated.
+    """
+    return ticker.strip().upper().replace("/", "-")
+
+
 def _cache_path(cache_dir: Path, ticker: str) -> Path:
     safe = ticker.replace("/", "-").replace("\\", "-").upper()
     return cache_dir / f"{safe}.parquet"
+
+
+def _read_sidecar(path: Path) -> dict:
+    try:
+        return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    except (json.JSONDecodeError, OSError):
+        return {}
+
+
+def fetched_with_current_symbol(sidecar: dict, ticker: str) -> bool:
+    """True if a cached series was requested under today's :func:`yahoo_symbol`.
+
+    Sidecars written before symbols were normalised record no symbol: those
+    requests used the panel ticker verbatim. For a share-class ticker that was
+    the wrong symbol, so its (empty) cache must be re-fetched.
+    """
+    return sidecar.get("symbol", ticker) == yahoo_symbol(ticker)
 
 
 def load_price_series(
@@ -121,36 +149,40 @@ def load_price_series(
     window than the cache was built for, the series is re-fetched. This prevents
     reusing a narrow series (e.g. one built during a shorter pilot run) and
     silently losing forward prices outside that window.
+
+    The cache is keyed by the panel ticker, but the request uses
+    :func:`yahoo_symbol` (``BRK/B`` -> ``BRK-B``), which the sidecar also
+    records; a cache requested under a different symbol is re-fetched.
     """
     path = _cache_path(cache_dir, ticker)
     range_path = path.with_name(path.stem + ".range.json")
     req_start, req_end = pd.Timestamp(start), pd.Timestamp(end)
+    symbol = yahoo_symbol(ticker)
 
-    if path.exists() and not force and _range_covers(range_path, req_start, req_end):
+    sidecar = _read_sidecar(range_path)
+    if (path.exists() and not force and _range_covers(sidecar, req_start, req_end)
+            and fetched_with_current_symbol(sidecar, ticker)):
         df = pd.read_parquet(path)
         return df if not df.empty else None
 
-    df = _fetch_yfinance(ticker, start, end)
+    df = _fetch_yfinance(symbol, start, end)
     if df is None or df.empty:
-        df = _fetch_stooq(ticker, start, end)
+        df = _fetch_stooq(symbol, start, end)
 
     cache_dir.mkdir(parents=True, exist_ok=True)
     (df if df is not None else pd.DataFrame(columns=["date", "adj_close"])).to_parquet(path, index=False)
     range_path.write_text(
-        json.dumps({"start": str(req_start.date()), "end": str(req_end.date())}),
+        json.dumps({"start": str(req_start.date()), "end": str(req_end.date()), "symbol": symbol}),
         encoding="utf-8",
     )
     return df if (df is not None and not df.empty) else None
 
 
-def _range_covers(range_path: Path, req_start: pd.Timestamp, req_end: pd.Timestamp) -> bool:
+def _range_covers(sidecar: dict, req_start: pd.Timestamp, req_end: pd.Timestamp) -> bool:
     """True if a prior fetch already requested a window covering [req_start, req_end]."""
-    if not range_path.exists():
-        return False
     try:
-        r = json.loads(range_path.read_text(encoding="utf-8"))
-        return pd.Timestamp(r["start"]) <= req_start and pd.Timestamp(r["end"]) >= req_end
-    except (json.JSONDecodeError, KeyError, ValueError):
+        return pd.Timestamp(sidecar["start"]) <= req_start and pd.Timestamp(sidecar["end"]) >= req_end
+    except (KeyError, ValueError, TypeError):
         return False
 
 
@@ -192,6 +224,21 @@ def _fetch_stooq(ticker: str, start: str, end: str) -> pd.DataFrame | None:
 
 
 # --- panel-level attachment -------------------------------------------------
+def price_data_cutoff(series_ends) -> np.datetime64:
+    """Last date the price data as a whole covers: the most common series end.
+
+    Caches are fetched at different times, so series end on different dates:
+    delisted names earlier, and any ticker fetched after the main run later. The
+    latest end would let those few late-fetched names carry labels for a period
+    no one else can be scored on; the most common end is the date the bulk of
+    the data was fetched up to (ties go to the later date).
+    """
+    ends = pd.Series(pd.to_datetime(list(series_ends)), dtype="datetime64[ns]")
+    if ends.empty:
+        return np.datetime64("NaT")
+    return ends.mode().max().to_datetime64()
+
+
 def compute_forward_returns(
     panel: pd.DataFrame,
     price_lookup: dict[str, pd.DataFrame],
@@ -212,10 +259,9 @@ def compute_forward_returns(
         for t, df in price_lookup.items()
         if df is not None and not df.empty
     }
-    # Latest date for which any price exists: periods whose horizon extends past
-    # this are simply not yet labelable (future), which must not be confused with
-    # delisting dropout.
-    max_price_date = max((d[-1] for d, _ in arrays.values()), default=np.datetime64("NaT"))
+    # Periods whose horizon extends past the price data are simply not yet
+    # labelable (future), which must not be confused with delisting dropout.
+    cutoff = price_data_cutoff([d[-1] for d, _ in arrays.values()])
 
     diag_rows: list[dict] = []
     for h in horizons:
@@ -235,6 +281,11 @@ def compute_forward_returns(
             rets[i] = r
             had_formation[i] = hf
             had_forward[i] = hfwd
+        # Rows whose horizon ends past the cutoff get no label, even if their own
+        # series runs further (a cache fetched later than the rest).
+        beyond = (pd.DatetimeIndex(formations) + pd.DateOffset(months=h)).to_numpy() > cutoff
+        rets[beyond] = np.nan
+        had_forward[beyond] = False
         panel[col] = rets
         panel[f"_had_formation_{h}m"] = had_formation
 
@@ -254,9 +305,9 @@ def compute_forward_returns(
         grp["dropout_rate"] = grp["dropped_no_forward_price"] / grp["n_with_formation_price"].replace(0, np.nan)
         grp["horizon_months"] = h
         # A period is labelable only if its horizon end is within available data;
-        # future periods (horizon end beyond the last price) are not delisting drop.
+        # future periods (horizon end beyond the cutoff) are not delisting drop.
         horizon_end = grp["formation_date"] + pd.DateOffset(months=h)
-        grp["labelable"] = horizon_end.to_numpy() <= max_price_date
+        grp["labelable"] = horizon_end.to_numpy() <= cutoff
         diag_rows.append(grp.reset_index())
 
     dropout = pd.concat(diag_rows, ignore_index=True) if diag_rows else pd.DataFrame()

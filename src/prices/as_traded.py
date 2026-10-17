@@ -15,6 +15,7 @@ stock actually traded at, using only information available on that date.
 
 from __future__ import annotations
 
+import json
 import logging
 import time
 from pathlib import Path
@@ -22,7 +23,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from .returns import _cache_path, value_asof_before
+from .returns import (_cache_path, _read_sidecar, fetched_with_current_symbol,
+                      value_asof_before, yahoo_symbol)
 
 logger = logging.getLogger("breadth13f.as_traded")
 
@@ -37,6 +39,10 @@ def load_raw_closes(tickers, cache_dir: Path, start: str = "2013-01-01",
     it is not re-requested, while a failed batch is left uncached and retried on
     the next run.
 
+    Requests use :func:`~.returns.yahoo_symbol` (``BRK/B`` -> ``BRK-B``); the
+    cache stays keyed by the panel ticker, with a ``.meta.json`` sidecar naming
+    the symbol fetched. A cache requested under a different symbol is re-fetched.
+
     ``end`` defaults to today: yfinance back-adjusts ``Close`` for every split up
     to the download date, so the split history must run to the same date for
     :func:`as_traded_prices` to undo all of them.
@@ -45,18 +51,21 @@ def load_raw_closes(tickers, cache_dir: Path, start: str = "2013-01-01",
 
     cache_dir.mkdir(parents=True, exist_ok=True)
     path = lambda t: _cache_path(cache_dir, str(t))  # noqa: E731
-    todo = [t for t in tickers if not path(t).exists()]
+    meta = lambda t: path(t).with_name(path(t).stem + ".meta.json")  # noqa: E731
+    todo = [t for t in tickers
+            if not (path(t).exists() and fetched_with_current_symbol(_read_sidecar(meta(t)), str(t)))]
     for i in range(0, len(todo), batch):
         chunk = todo[i:i + batch]
+        symbols = {t: yahoo_symbol(str(t)) for t in chunk}
         try:
-            raw = yf.download(chunk, start=start, end=end, auto_adjust=False, actions=True,
-                              group_by="ticker", threads=True, progress=False)
+            raw = yf.download(sorted(set(symbols.values())), start=start, end=end, auto_adjust=False,
+                              actions=True, group_by="ticker", threads=True, progress=False)
         except Exception as exc:  # noqa: BLE001 - leave uncached, retried next run
             logger.warning("raw-close batch failed (%s): %s", chunk[:3], exc)
             continue
         for t in chunk:
             try:
-                sub = raw[t] if isinstance(raw.columns, pd.MultiIndex) else raw
+                sub = raw[symbols[t]] if isinstance(raw.columns, pd.MultiIndex) else raw
             except KeyError:
                 sub = None
             df = pd.DataFrame(columns=["date", "close", "split"])
@@ -68,6 +77,7 @@ def load_raw_closes(tickers, cache_dir: Path, start: str = "2013-01-01",
                 }).dropna(subset=["close"])
                 df["split"] = df["split"].fillna(0.0).astype(float)
             df.to_parquet(path(t), index=False)
+            meta(t).write_text(json.dumps({"symbol": symbols[t]}), encoding="utf-8")
         logger.info("raw closes: %d / %d tickers fetched", min(i + batch, len(todo)), len(todo))
         time.sleep(1.0)
     out = {}
