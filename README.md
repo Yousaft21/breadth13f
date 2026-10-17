@@ -23,21 +23,29 @@ Over **45 quarterly formation dates (2014-Q1 … 2025-Q1)** and ~2,870 US-listed
 equities per date, out-of-sample under purged & embargoed cross-validation, at
 the **12-month** horizon:
 
-| Model | Mean rank IC | ICIR | t-stat | Decile L/S |
+| Model | Mean rank IC | ICIR | t-stat (Newey-West) | Decile L/S |
 |-------|:---:|:---:|:---:|:---:|
-| Size/value baseline | 0.0532 | 0.80 | 5.4 | — |
-| **Full breadth + baseline** | **0.0644** | **0.82** | **5.5** | **+5.8%** |
-| Breadth model, OOS-pruned | 0.0677 | 0.95 | 6.4 | +5.3% |
+| Size/value baseline | 0.0532 | 0.80 | 3.4 | — |
+| **Full breadth + baseline** | **0.0644** | **0.82** | **3.5** | **+5.8%** |
+| Breadth model, OOS-pruned | 0.0677 | 0.95 | 4.1 | +5.3% |
+| *Breadth increment (full − baseline)* | *+0.0112* | *0.32* | *1.6* | |
 
 The breadth features add **+0.0112 mean rank IC over the size/value baseline**
-(the incremental effect). Out-of-sample backward elimination — which drops
+(the incremental effect), beating it in 67% of quarters — but tested as a paired
+per-quarter series the increment is **not statistically significant** (Newey-West
+t 1.6, p ≈ 0.11). The model as a whole is significant; breadth's own
+contribution on top of size/value is suggestive, not established.
+
+t-statistics are **Newey-West** (4 lags at 12m): 12-month returns measured every
+quarter overlap by 9 months, so consecutive ICs are correlated and the naive
+t (5.5 for the full model) overstates the evidence. Out-of-sample backward elimination — which drops
 features whose removal does not reduce OOS IC — raises IC from 0.0644 to 0.0677
 by discarding four features, but that figure is **optimistic**: pruning chose
 features on the same folds it is evaluated on, so the full model is the honest
 headline. It is also unstable: adding 24 share-class names (below) changed which
 features it drops and moved the pruned IC from 0.0772 to 0.0677. The classic
 Chen–Hong–Stein Δbreadth predictor **survives** pruning at both horizons. Results are consistent at the 6-month horizon (see below). These
-are quarterly rank ICs; the signal is real and statistically significant but
+are quarterly rank ICs; the full model is statistically significant but
 economically modest, as expected for a single quarterly ownership signal. The
 decile spreads are 12-month averages; a quarterly-rebalanced D1−D10 portfolio is
 not statistically significant, and the edge sits in the long leg (validation Q6).
@@ -157,7 +165,10 @@ cap exceeds $6T, the size/value features are left missing rather than wrong.
 ## Evaluation
 
 Per formation date: Spearman **rank IC**; aggregated to mean IC, **ICIR**,
-t-statistic and hit rate; **top-minus-bottom decile** forward-return spread; and
+t-statistic and hit rate. t-statistics are reported naive and **Newey-West**
+(lags = label horizon ÷ 3 months), because overlapping forward-return labels make
+consecutive ICs autocorrelated; the incremental IC is tested as a paired
+per-period series (full-model IC − baseline IC on the same quarters). Also: **top-minus-bottom decile** forward-return spread; and
 top-book **turnover**. Cross-validation is **purged & embargoed** (López de
 Prado, AFML Ch. 7), grouped by whole formation quarters, with the embargo sized
 to the 6–12 month label horizon. The full model and the baseline are scored on
@@ -213,22 +224,26 @@ Universe & coverage (full 2014–2026 build):
 
 Out-of-sample performance under purged & embargoed CV (LightGBM ranker):
 
-| Horizon | Model | Mean IC | ICIR | t | Decile L/S | Turnover |
-|:---:|---|:---:|:---:|:---:|:---:|:---:|
-| 12m | Size/value baseline | 0.0532 | 0.80 | 5.4 | — | — |
-| 12m | **Full (16 features)** | **0.0644** | **0.82** | **5.5** | **+5.8%** | 0.46 |
-| 12m | OOS-pruned (12 features)\* | 0.0677 | 0.95 | 6.4 | +5.3% | 0.45 |
-| 6m | Size/value baseline | 0.0508 | 0.71 | 4.9 | — | — |
-| 6m | **Full (16 features)** | **0.0616** | **0.83** | **5.7** | **+2.1%** | 0.58 |
-| 6m | OOS-pruned (11 features)\* | 0.0694 | 1.00 | 6.8 | +2.6% | 0.55 |
+| Horizon | Model | Mean IC | ICIR | t (naive) | t (Newey-West) | Decile L/S | Turnover |
+|:---:|---|:---:|:---:|:---:|:---:|:---:|:---:|
+| 12m | Size/value baseline | 0.0532 | 0.80 | 5.4 | 3.4 | — | — |
+| 12m | **Full (16 features)** | **0.0644** | **0.82** | **5.5** | **3.5** | **+5.8%** | 0.46 |
+| 12m | OOS-pruned (12 features)\* | 0.0677 | 0.95 | 6.4 | 4.1 | +5.3% | 0.45 |
+| 12m | *Increment (full − baseline)* | *+0.0112* | *0.32* | *2.2* | *1.6* | | |
+| 6m | Size/value baseline | 0.0508 | 0.71 | 4.9 | 3.9 | — | — |
+| 6m | **Full (16 features)** | **0.0616** | **0.83** | **5.7** | **4.4** | **+2.1%** | 0.58 |
+| 6m | OOS-pruned (11 features)\* | 0.0694 | 1.00 | 6.8 | 5.3 | +2.6% | 0.55 |
+| 6m | *Increment (full − baseline)* | *+0.0108* | *0.25* | *1.7* | *1.5* | | |
 
 \* Optimistic: features were pruned on the same folds the IC is measured on.
+Newey-West lags: 4 at 12m, 2 at 6m.
 
 **Incremental IC of breadth over the size/value baseline: +0.0112 (12m), +0.0108
-(6m).** SHAP attribution shows the size/value controls (size, book-to-market,
+(6m)** — positive in 67% / 62% of quarters, but not significant at 5% at either
+horizon (Newey-West t 1.6 / 1.5). SHAP attribution shows the size/value controls (size, book-to-market,
 earnings yield) are the largest contributors, followed by position-size
 dispersion, top-10 concentration and aggregate institutional shares; the breadth
-features add a smaller but consistent increment. Out-of-sample backward
+features add a smaller increment. Out-of-sample backward
 elimination drops features whose removal does not reduce OOS IC — at 12m:
 `top5_share, delta_total_inst_shares_pct, exit_rate, earnings_yield`. The
 Chen–Hong–Stein Δbreadth predictor (`delta_breadth`) survives at both horizons
@@ -248,10 +263,12 @@ data-quality checks (look-ahead in the market caps, which it found and which is
 now fixed; SEC share-count sanity).
 Helpers live in [`src/backtest/validation.py`](src/backtest/validation.py).
 
-Interpretation: a genuine, statistically significant (t ≈ 5.5 over 45 quarters)
-but economically modest cross-sectional signal, dominated by size/value with a
-small consistent breadth increment — the kind of honest, marginal result
-expected from a single quarterly ownership signal, not an outsized alpha.
+Interpretation: a statistically significant (Newey-West t ≈ 3.5 over 45
+quarters) but economically modest cross-sectional signal, dominated by
+size/value. Breadth adds a small increment (+0.011 IC, positive in two-thirds of
+quarters) that is not separately significant with 45 overlapping quarters — the
+kind of honest, marginal result expected from a single quarterly ownership
+signal, not an outsized alpha.
 
 ## Limitations
 

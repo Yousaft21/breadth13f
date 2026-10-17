@@ -57,6 +57,9 @@ def test_full_model_beats_noise_baseline():
     )
     assert res["full"].summary["mean_ic"] > 0.1
     assert res["incremental_mean_ic"] > 0.05  # breadth adds real OOS IC
+    # The paired per-period test averages to the same increment.
+    assert np.isclose(res["incremental"]["mean_ic"], res["incremental_mean_ic"])
+    assert res["incremental"]["t_stat"] > 2
 
 
 def test_shap_ranks_signal_first_and_pruning_keeps_it():

@@ -8,6 +8,8 @@ import pandas as pd
 from src.backtest.metrics import (
     decile_spread,
     ic_summary,
+    newey_west_t,
+    nw_lags_for,
     portfolio_turnover,
     rank_ic,
 )
@@ -49,6 +51,20 @@ def test_ic_summary_stats():
     # ICIR = mean/std ; t = ICIR*sqrt(n)
     assert np.isclose(s["t_stat"], s["icir"] * np.sqrt(5))
     assert 0 <= s["hit_rate"] <= 1
+
+
+def test_newey_west_t_known_value_and_overlap_penalty():
+    x = np.array([0.1, 0.2, 0.0, 0.3, 0.1])
+    # lags=0: mean / sqrt(population variance / n)
+    assert np.isclose(newey_west_t(x, 0), x.mean() / np.sqrt(x.var() / len(x)))
+    # Overlapping labels -> positively autocorrelated ICs: a smoothed series
+    # (moving average of 4, like 12m returns sampled quarterly) must get a
+    # smaller NW t than its naive t.
+    rng = np.random.default_rng(0)
+    smooth = pd.Series(0.02 + rng.normal(0, 0.05, 400)).rolling(4).mean().dropna()
+    s = ic_summary(smooth, nw_lags=4)
+    assert s["t_stat_nw"] < 0.7 * s["t_stat"]
+    assert nw_lags_for(12) == 4 and nw_lags_for(6) == 2
 
 
 def test_decile_spread_positive_when_pred_orders_labels():

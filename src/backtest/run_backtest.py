@@ -21,6 +21,7 @@ import json
 import logging
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from ..config import load_config, setup_logging
@@ -34,7 +35,7 @@ from ..viz.plots import (
 )
 from .attribution import backward_eliminate
 from .cv import PurgedKFold
-from .metrics import decile_spread
+from .metrics import decile_spread, nw_lags_for
 from .model import evaluate, run_cv_predictions, run_full_vs_baseline
 
 logger = logging.getLogger("breadth13f.backtest")
@@ -54,7 +55,13 @@ def _serialize_result(res) -> dict:
 
 
 def write_summary(tables: Path) -> pd.DataFrame:
-    """Collect every ``backtest_results_<h>m.json`` into ``summary.csv``."""
+    """Collect every ``backtest_results_<h>m.json`` into ``summary.csv``.
+
+    One row per model, plus an ``increment`` row (full minus baseline, tested
+    as a paired per-period series). ``t_stat_nw`` is the Newey-West t-statistic,
+    robust to the overlap between consecutive forward-return labels.
+    """
+    order = {"baseline": 0, "full": 1, "pruned": 2, "increment": 3}
     rows = []
     for path in tables.glob("backtest_results_*m.json"):
         r = json.loads(path.read_text(encoding="utf-8"))
@@ -66,12 +73,24 @@ def write_summary(tables: Path) -> pd.DataFrame:
             rows.append({
                 "horizon_m": r["horizon_months"], "model": model,
                 "mean_ic": round(s["mean_ic"], 4), "icir": round(s["icir"], 2),
-                "t_stat": round(s["t_stat"], 2), "hit_rate": round(s["hit_rate"], 2),
+                "t_stat": round(s["t_stat"], 2), "t_stat_nw": round(s.get("t_stat_nw", np.nan), 2),
+                "hit_rate": round(s["hit_rate"], 2),
                 "decile_ls": round(s["ls_mean_ls_spread"], 4),
                 "turnover": round(s["mean_top_turnover"], 3),
                 "n_features": n_feat, "n_periods": s["n_periods"],
             })
-    out = pd.DataFrame(rows).sort_values(["horizon_m", "model"], ascending=[False, True])
+        inc = r.get("incremental_ic")
+        if inc is None:      # results written before the paired test existed
+            continue
+        rows.append({
+            "horizon_m": r["horizon_months"], "model": "increment",
+            "mean_ic": round(inc["mean_ic"], 4), "icir": round(inc["icir"], 2),
+            "t_stat": round(inc["t_stat"], 2), "t_stat_nw": round(inc["t_stat_nw"], 2),
+            "hit_rate": round(inc["hit_rate"], 2), "n_periods": inc["n_periods"],
+        })
+    out = pd.DataFrame(rows).astype({"n_features": "Int64"})
+    out = out.sort_values(["horizon_m", "model"], ascending=[False, True],
+                          key=lambda c: c.map(order) if c.name == "model" else c)
     out.to_csv(tables / "summary.csv", index=False)
     return out
 
@@ -103,12 +122,16 @@ def main() -> None:
     )
 
     # --- full breadth+baseline vs size/value baseline ---
-    comp = run_full_vs_baseline(panel, full_features, baseline_features, label_col, cv)
+    # Labels longer than the quarterly spacing overlap: Newey-West t-stats.
+    nw_lags = nw_lags_for(horizon)
+    comp = run_full_vs_baseline(panel, full_features, baseline_features, label_col, cv,
+                                nw_lags=nw_lags)
     full, base = comp["full"], comp["baseline"]
 
     # --- SHAP attribution + out-of-sample backward elimination ---
     elim = backward_eliminate(panel, full_features, label_col, cv)
-    pruned = evaluate(run_cv_predictions(panel, elim["kept"], label_col, cv), label_col)
+    pruned = evaluate(run_cv_predictions(panel, elim["kept"], label_col, cv), label_col,
+                      nw_lags=nw_lags)
 
     # --- universe stats ---
     per_period = panel.groupby("period")["composite_figi"].nunique()
@@ -128,6 +151,8 @@ def main() -> None:
         "full_model": _serialize_result(full),
         "pruned_model": _serialize_result(pruned),
         "incremental_mean_ic": comp["incremental_mean_ic"],   # full over baseline
+        "incremental_ic": comp["incremental"],   # paired per-period test of the increment
+        "newey_west_lags": nw_lags,
         "shap_importance": {k: float(v) for k, v in elim["importance"].items()},
         "dropped_features": elim["dropped"],
         "kept_features": elim["kept"],
@@ -152,11 +177,12 @@ def main() -> None:
     write_summary(tables)
 
     logger.info(
-        "DONE %dm | baseline IC %.4f | full IC %.4f (ICIR %.2f, t %.2f) | incremental %.4f | "
-        "pruned IC %.4f | L/S %.4f | kept %d dropped %d %s",
+        "DONE %dm | baseline IC %.4f | full IC %.4f (ICIR %.2f, t %.2f, NW t %.2f) | "
+        "incremental %.4f (NW t %.2f) | pruned IC %.4f | L/S %.4f | kept %d dropped %d %s",
         horizon, base.summary["mean_ic"], full.summary["mean_ic"],
         full.summary.get("icir", float("nan")), full.summary.get("t_stat", float("nan")),
-        comp["incremental_mean_ic"], pruned.summary["mean_ic"],
+        full.summary.get("t_stat_nw", float("nan")),
+        comp["incremental_mean_ic"], comp["incremental"]["t_stat_nw"], pruned.summary["mean_ic"],
         pruned.summary.get("ls_mean_ls_spread", float("nan")),
         len(elim["kept"]), len(elim["dropped"]), elim["dropped"],
     )

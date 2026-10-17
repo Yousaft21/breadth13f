@@ -5,8 +5,9 @@ matching how a cross-sectional signal is actually traded:
 
 * :func:`rank_ic` — Spearman rank correlation between prediction and realized
   forward return, one value per formation date.
-* :func:`ic_summary` — mean IC, IC volatility, ICIR (mean/vol), a Newey-unadjusted
-  t-statistic, hit rate and number of periods.
+* :func:`ic_summary` — mean IC, IC volatility, ICIR (mean/vol), the naive
+  t-statistic, a Newey-West t-statistic, hit rate and number of periods.
+* :func:`newey_west_t` — t-statistic of a mean, robust to autocorrelation.
 * :func:`decile_spread` — top-minus-bottom decile mean-return spread per period.
 * :func:`portfolio_turnover` — average one-sided turnover of the top-decile
   long book, security-identity aware.
@@ -36,13 +37,43 @@ def rank_ic(
     return pd.Series(out, name="rank_ic").sort_index()
 
 
-def ic_summary(ic: pd.Series) -> dict:
-    """Aggregate a per-period IC series into headline statistics."""
+def newey_west_t(x: pd.Series | np.ndarray, lags: int) -> float:
+    """t-statistic of the mean of ``x`` with a Newey-West (Bartlett) variance.
+
+    Forward returns longer than the spacing between formation dates overlap
+    (a 12-month return measured every quarter shares 9 months with the next
+    one), so consecutive ICs are positively autocorrelated and the naive
+    t-statistic overstates the evidence. ``lags=0`` gives the naive t with a
+    population (``ddof=0``) variance.
+    """
+    x = np.asarray(pd.Series(x).dropna(), dtype=float)
+    n = len(x)
+    if n < 2:
+        return np.nan
+    e = x - x.mean()
+    var = e @ e / n
+    for k in range(1, min(lags, n - 1) + 1):
+        var += 2 * (1 - k / (lags + 1)) * (e[k:] @ e[:-k]) / n
+    return float(x.mean() / np.sqrt(var / n)) if var > 0 else np.nan
+
+
+def nw_lags_for(horizon_months: int, spacing_months: int = 3) -> int:
+    """Newey-West lags for a label of ``horizon_months`` sampled every
+    ``spacing_months``: one per spacing the label spans (12m quarterly -> 4)."""
+    return int(np.ceil(horizon_months / spacing_months))
+
+
+def ic_summary(ic: pd.Series, nw_lags: int = 0) -> dict:
+    """Aggregate a per-period IC series into headline statistics.
+
+    ``t_stat`` is the naive t (iid periods); ``t_stat_nw`` uses ``nw_lags``
+    Newey-West lags and is the one to trust for overlapping labels.
+    """
     ic = ic.dropna()
     n = len(ic)
     if n == 0:
         return {"mean_ic": np.nan, "ic_std": np.nan, "icir": np.nan,
-                "t_stat": np.nan, "hit_rate": np.nan, "n_periods": 0}
+                "t_stat": np.nan, "t_stat_nw": np.nan, "hit_rate": np.nan, "n_periods": 0}
     mean = float(ic.mean())
     std = float(ic.std(ddof=1)) if n > 1 else np.nan
     icir = mean / std if std and np.isfinite(std) and std > 0 else np.nan
@@ -51,7 +82,8 @@ def ic_summary(ic: pd.Series) -> dict:
         "mean_ic": mean,
         "ic_std": std,
         "icir": icir,          # per-period information ratio of the IC series
-        "t_stat": t_stat,      # H0: mean IC = 0
+        "t_stat": t_stat,      # H0: mean IC = 0, periods independent
+        "t_stat_nw": newey_west_t(ic, nw_lags),   # H0: mean IC = 0, overlap-robust
         "hit_rate": float((ic > 0).mean()),
         "n_periods": n,
     }

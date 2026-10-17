@@ -87,10 +87,11 @@ def run_cv_predictions(
     return work.loc[work["pred"].notna(), keep].reset_index(drop=True)
 
 
-def evaluate(oos: pd.DataFrame, label_col: str, by: str = "period") -> BacktestResult:
+def evaluate(oos: pd.DataFrame, label_col: str, by: str = "period",
+             nw_lags: int = 0) -> BacktestResult:
     """Compute IC/ICIR, decile spread and turnover from OOS predictions."""
     ic = rank_ic(oos, "pred", label_col, by=by)
-    summary = ic_summary(ic)
+    summary = ic_summary(ic, nw_lags)
     spread, spread_summary = decile_spread(oos, "pred", label_col, by=by)
     turn = portfolio_turnover(oos, "pred", by=by)
     summary.update({f"ls_{k}": v for k, v in spread_summary.items()})
@@ -106,20 +107,30 @@ def run_full_vs_baseline(
     cv: PurgedKFold,
     params: dict | None = None,
     by: str = "period",
+    nw_lags: int = 0,
 ) -> dict:
-    """Run both models on identical folds and report incremental IC."""
+    """Run both models on identical folds and report incremental IC.
+
+    The increment is tested as a paired series: per-period full IC minus
+    baseline IC on the same periods (``incremental`` holds its
+    :func:`ic_summary`, including the Newey-West t-statistic).
+    """
     full_oos = run_cv_predictions(panel, full_features, label_col, cv, params, by)
     base_oos = run_cv_predictions(panel, baseline_features, label_col, cv, params, by)
-    full = evaluate(full_oos, label_col, by)
-    base = evaluate(base_oos, label_col, by)
+    full = evaluate(full_oos, label_col, by, nw_lags)
+    base = evaluate(base_oos, label_col, by, nw_lags)
 
-    incremental = full.summary["mean_ic"] - base.summary["mean_ic"]
+    diff = (full.ic - base.ic).dropna()
+    incremental = ic_summary(diff, nw_lags)
     logger.info(
-        "mean rank IC — full: %.4f | baseline: %.4f | incremental: %.4f",
-        full.summary["mean_ic"], base.summary["mean_ic"], incremental,
+        "mean rank IC — full: %.4f | baseline: %.4f | incremental: %.4f "
+        "(t %.2f, Newey-West t %.2f)",
+        full.summary["mean_ic"], base.summary["mean_ic"], incremental["mean_ic"],
+        incremental["t_stat"], incremental["t_stat_nw"],
     )
     return {
         "full": full,
         "baseline": base,
-        "incremental_mean_ic": incremental,
+        "incremental_mean_ic": full.summary["mean_ic"] - base.summary["mean_ic"],
+        "incremental": incremental,
     }
