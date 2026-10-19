@@ -170,3 +170,11 @@ def test_malformed_row_is_skipped_not_fatal():
 def test_empty_input_returns_empty():
     assert parse_info_table_xml("") == []
     assert extract_info_table_xml("no documents here") is None
+
+
+def test_xml_comments_are_ignored():
+    # Some filer software writes comments inside the table; lxml gives them a
+    # non-string tag, which used to abort the whole filing.
+    commented = PREFIXED_XML.replace("<ns1:cusip>", "<!-- generated --><ns1:cusip>")
+    rows = parse_info_table_xml(commented)
+    assert len(rows) == 1 and rows[0]["cusip"] == "594918104"

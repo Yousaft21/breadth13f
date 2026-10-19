@@ -22,6 +22,7 @@ from __future__ import annotations
 import gzip
 import logging
 import time
+from datetime import datetime
 from pathlib import Path
 from threading import Lock
 from urllib.parse import urlparse
@@ -169,6 +170,11 @@ class EdgarClient:
 
     def is_cached(self, url: str, *, compress: bool = False) -> bool:
         return self._cache_path(url, compress).exists()
+
+    def cached_at(self, url: str, *, compress: bool = False) -> datetime | None:
+        """Local time the cached copy of ``url`` was written, or ``None``."""
+        path = self._cache_path(url, compress)
+        return datetime.fromtimestamp(path.stat().st_mtime) if path.exists() else None
 
     # --- download with retries ------------------------------------------------
     def _download(self, url: str, allow_missing: bool = False) -> bytes | None:

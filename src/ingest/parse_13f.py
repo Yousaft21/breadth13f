@@ -165,8 +165,14 @@ def extract_info_table_xml(text: str) -> str | None:
     return fb.group(1).strip() if fb else None
 
 
-def _localname(tag: str) -> str:
-    """Namespace-agnostic local tag name ('{uri}infoTable' -> 'infoTable')."""
+def _localname(tag) -> str:
+    """Namespace-agnostic local tag name ('{uri}infoTable' -> 'infoTable').
+
+    Comments and processing instructions carry a function, not a string, as
+    their tag; they have no name.
+    """
+    if not isinstance(tag, str):
+        return ""
     return tag.rsplit("}", 1)[-1] if "}" in tag else tag
 
 

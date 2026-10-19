@@ -27,14 +27,14 @@ import argparse
 import json
 import logging
 from dataclasses import asdict
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 import pandas as pd
 from tqdm import tqdm
 
 from ..config import Config, load_config, setup_logging
-from .crawl import Quarter, FilingRef, iter_quarters, list_13f_filings
+from .crawl import Quarter, FilingRef, iter_quarters, list_13f_filings, quarter_closed_by
 from .edgar_client import EdgarClient
 from .parse_13f import parse_submission
 
@@ -103,7 +103,13 @@ def ingest_quarter(
     holdings_path = holdings_dir / f"filing_quarter={fq}.parquet"
     manifest_path = manifest_dir / f"filing_quarter={fq}.parquet"
 
-    if holdings_path.exists() and not force:
+    # Output written while the filing quarter was still open misses every filing
+    # made after that day: rebuild it rather than skip it.
+    incomplete = holdings_path.exists() and not quarter_closed_by(
+        fq, datetime.fromtimestamp(holdings_path.stat().st_mtime))
+    if incomplete:
+        logger.info("%s: output was written before the quarter closed; rebuilding", fq)
+    if holdings_path.exists() and not force and not incomplete:
         logger.info("%s: output exists, skipping (use --force to rebuild)", fq)
         mani = pd.read_parquet(manifest_path)
         return {

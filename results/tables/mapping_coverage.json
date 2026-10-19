@@ -1,9 +1,9 @@
 {
-  "distinct_cusips": 117731,
-  "mapped_any": 53019,
-  "mapped_pct": 45.03,
-  "us_common_equity": 8287,
-  "us_common_equity_pct": 7.04,
-  "unmapped": 64712,
-  "unmapped_pct": 54.97
+  "distinct_cusips": 120302,
+  "mapped_any": 54527,
+  "mapped_pct": 45.33,
+  "us_common_equity": 8448,
+  "us_common_equity_pct": 7.02,
+  "unmapped": 65775,
+  "unmapped_pct": 54.67
 }

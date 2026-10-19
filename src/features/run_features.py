@@ -4,7 +4,7 @@ Reads ingested holdings + the security master and writes the security x
 formation-date breadth panel to ``data/processed/breadth_panel.parquet``.
 
 Holdings are loaded **one filing quarter at a time** (streaming). A period's
-point-in-time filings (accepted within the 46-day lag of quarter-end) all fall
+point-in-time filings (accepted by the 45-day filing deadline) all fall
 in the single next calendar quarter's file, so only that file is needed per
 period — keeping memory bounded across the full 12-year, ~117M-row dataset.
 """
@@ -62,14 +62,14 @@ def main() -> None:
 
     holdings_dir = cfg.path("interim") / "holdings"
     secmaster = pd.read_parquet(cfg.path("processed") / "security_master.parquet")
-    lag = int(cfg.pit["filing_lag_days"])
+    deadline_days = int(cfg.pit["filing_deadline_days"])
 
     periods = _available_periods(holdings_dir)
     logger.info("Streaming %d candidate periods (%s .. %s)",
                 len(periods), periods[0].date(), periods[-1].date())
 
     panel = build_feature_panel(
-        holdings=None, secmaster=secmaster, filing_lag_days=lag,
+        holdings=None, secmaster=secmaster, deadline_days=deadline_days,
         holdings_loader=_make_loader(holdings_dir), periods=periods,
     )
     out = cfg.path("processed") / "breadth_panel.parquet"

@@ -17,7 +17,7 @@ project:
 # (fiscal quarter-end the holdings describe), NOT the filing date.
 window:
   start_quarter: "2014Q1"
-  end_quarter:   "2026Q1"
+  end_quarter:   "2026Q2"
 
 # --- EDGAR access -----------------------------------------------------------
 # SEC fair-access policy: <=10 requests/second, and every request MUST carry a
@@ -40,12 +40,20 @@ edgar:
     - "13F-HR/A"
 
 # --- Point-in-time rule -----------------------------------------------------
-# Managers have up to 45 days after quarter-end to file. The signal for a
-# quarter can only be formed once filings have arrived. We snapshot at
-# quarter-end + filing_lag_days and use ONLY filings accepted on/before that
-# date (actual acceptance datetimes are respected per filing).
+# Managers have filing_deadline_days after quarter-end to file; a deadline on a
+# weekend or federal holiday moves to the next business day (Rule 0-3). Each
+# quarter's snapshot holds ONLY filings accepted by the end of that deadline
+# day (actual acceptance datetimes are respected per filing), and the signal is
+# formed and traded on the next business day.
 pit:
-  filing_lag_days: 46
+  filing_deadline_days: 45
+
+# --- Prices -----------------------------------------------------------------
+# Last date of price data used. Series are cut here, and cached series fetched
+# before it are re-fetched, so a run's labels do not depend on when caches were
+# filled.
+prices:
+  data_end: "2026-09-30"
 
 # --- Universe filter --------------------------------------------------------
 # A security enters the panel for a formation date when it has at least this

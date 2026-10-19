@@ -56,6 +56,13 @@ class Quarter:
         return pd.Timestamp(self.year, month, 1) + pd.offsets.MonthEnd(0)
 
 
+def quarter_closed_by(quarter: Quarter, when) -> bool:
+    """True if ``when`` is after the last day of filing ``quarter``."""
+    import pandas as pd
+
+    return pd.Timestamp(when) >= quarter.end_date() + pd.Timedelta(days=1)
+
+
 def iter_quarters(start: Quarter, end: Quarter) -> Iterator[Quarter]:
     cur = start
     while cur <= end:
@@ -88,9 +95,18 @@ def list_13f_filings(
     quarter: Quarter,
     form_types: set[str],
 ) -> list[FilingRef]:
-    """Download and parse one quarter's master index, filtered to 13F forms."""
+    """Download and parse one quarter's master index, filtered to 13F forms.
+
+    The index grows every business day until the quarter ends, so a copy cached
+    while the quarter was still open is incomplete and is re-downloaded.
+    """
     url = f"{base_archives}/edgar/full-index/{quarter.year}/QTR{quarter.q}/master.idx"
-    text = client.get_text(url, compress=True)
+    cached_at = client.cached_at(url, compress=True)
+    stale = cached_at is not None and not quarter_closed_by(quarter, cached_at)
+    if stale:
+        logger.info("%s: cached index predates quarter close (%s); re-downloading",
+                    quarter, cached_at.date())
+    text = client.get_text(url, compress=True, force=stale)
 
     refs: list[FilingRef] = []
     started = False

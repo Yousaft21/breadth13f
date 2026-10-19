@@ -34,17 +34,18 @@ from ..mapping import issuer_cik
 from .as_traded import load_raw_closes
 from .baseline import build_baseline_features
 from .fundamentals import FundamentalsProvider, _norm_ticker, load_ticker_cik_map
-from .returns import compute_forward_returns, load_price_series
+from .returns import compute_forward_returns, load_price_series, prefetch_price_series
 
 logger = logging.getLogger("breadth13f.prices")
 
 
-def _load_all_prices(tickers, start, end, cache_dir) -> dict[str, pd.DataFrame]:
+def _load_all_prices(tickers, start, end, cache_dir, data_end=None) -> dict[str, pd.DataFrame]:
+    prefetch_price_series(tickers, start, end, cache_dir, data_end=data_end)
     lookup: dict[str, pd.DataFrame] = {}
     for t in tqdm(tickers, desc="prices", unit="ticker"):
         if not isinstance(t, str) or not t:
             continue
-        df = load_price_series(t, start, end, cache_dir)
+        df = load_price_series(t, start, end, cache_dir, data_end=data_end)
         if df is not None and not df.empty:
             lookup[t] = df
     logger.info("Loaded price series for %d / %d tickers", len(lookup), len(tickers))
@@ -129,11 +130,12 @@ def main() -> None:
     formations = pd.to_datetime(panel["formation_date"])
     start = (formations.min() - pd.Timedelta(days=420)).strftime("%Y-%m-%d")
     end = (formations.max() + pd.DateOffset(months=max(args.horizons) + 1)).strftime("%Y-%m-%d")
+    data_end = cfg.raw.get("prices", {}).get("data_end")
     tickers = sorted({t for t in panel["ticker"].dropna().unique() if t})
-    logger.info("Panel: %d rows, %d tickers; price window %s..%s",
-                len(panel), len(tickers), start, end)
+    logger.info("Panel: %d rows, %d tickers; price window %s..%s (data end %s)",
+                len(panel), len(tickers), start, end, data_end)
 
-    price_lookup = _load_all_prices(tickers, start, end, cfg.path("raw") / "prices")
+    price_lookup = _load_all_prices(tickers, start, end, cfg.path("raw") / "prices", data_end)
 
     panel, dropout = compute_forward_returns(panel, price_lookup, horizons=tuple(args.horizons))
     dropout.to_csv(cfg.path("results") / "tables" / "delisting_dropout.csv", index=False)
